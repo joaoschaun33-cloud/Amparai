@@ -469,10 +469,11 @@ async def create_invitation(data: InviteIn, authorization: Optional[str] = Heade
 
 @api_router.get("/invitations/{code}")
 async def get_invitation(code: str):
-    inv = await db.invitations.find_one({"code": code}, {"_id": 0, "owner_id": 0})
+    inv = await db.invitations.find_one({"code": code}, {"_id": 0})
     if not inv:
         raise HTTPException(status_code=404, detail="Convite não encontrado")
-    elder = await db.elders.find_one({"owner_id": (await db.invitations.find_one({"code": code}))["owner_id"]}, {"_id": 0, "owner_id": 0})
+    elder = await db.elders.find_one({"owner_id": inv["owner_id"]}, {"_id": 0, "owner_id": 0})
+    inv.pop("owner_id", None)
     return {"invitation": inv, "elder_name": elder["name"] if elder else "sua família"}
 
 # ---------- WhatsApp gentle nudge (deep-link, no Meta API) ----------
@@ -560,10 +561,10 @@ class ScanIn(BaseModel):
 
 @api_router.get("/pulseira/{elder_id}")
 async def public_pulseira(elder_id: str):
-    elder = await db.elders.find_one({"id": elder_id}, {"_id": 0, "owner_id": 0})
+    elder = await db.elders.find_one({"id": elder_id}, {"_id": 0})
     if not elder:
         raise HTTPException(status_code=404, detail="Não encontrado")
-    clinical = await db.clinical.find_one({"owner_id": (await db.elders.find_one({"id": elder_id}))["owner_id"]}, {"_id": 0, "owner_id": 0}) or {}
+    clinical = await db.clinical.find_one({"owner_id": elder["owner_id"]}, {"_id": 0, "owner_id": 0}) or {}
     return {
         "elder": {"name": elder.get("name"), "age": elder.get("age"), "photo_url": elder.get("photo_url")},
         "blood_type": clinical.get("blood_type"),
