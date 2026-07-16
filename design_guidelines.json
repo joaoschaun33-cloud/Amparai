@@ -1,0 +1,160 @@
+{
+  "app_name": "Amparai",
+  "personality": "8 Hand-Drawn / Journal LIGHT combined with 3 Editorial Mobile LIGHT",
+  "personality_one_liner": "A calm, warm, and precise 'control room' for the family, functioning as the invisible infrastructure of filial love without ever feeling clinical or alarming.",
+  "color": {
+    "surface": "#F7F0E6",
+    "onSurface": "#3E2F25",
+    "surfaceSecondary": "#FFF9F0",
+    "onSurfaceSecondary": "#3E2F25",
+    "surfaceTertiary": "#EAE0D3",
+    "onSurfaceTertiary": "#3E2F25",
+    "surfaceInverse": "#5C6E49",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#C4633F",
+    "brandPrimary": "#C4633F",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#5C6E49",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E8A854",
+    "onBrandTertiary": "#3E2F25",
+    "success": "#5C6E49",
+    "onSuccess": "#FFFFFF",
+    "warning": "#E8A854",
+    "onWarning": "#3E2F25",
+    "error": "#A9402E",
+    "onError": "#FFFFFF",
+    "info": "#C4633F",
+    "onInfo": "#FFFFFF",
+    "border": "#EAE0D3",
+    "borderStrong": "#C4633F",
+    "divider": "#EAE0D3"
+  },
+  "typography": {
+    "displayFontFamily": "Fraunces",
+    "textFontFamily": "Nunito Sans",
+    "scale": {
+      "sm": 14,
+      "base": 16,
+      "lg": 18,
+      "xl": 22,
+      "2xl": 28
+    }
+  },
+  "spacing": {
+    "rule": "Generous and calm spacing. Allow elements to breathe. Large touch targets (min 48px height) for accessibility, spaced far enough to avoid accidental taps.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "false",
+    "do's": [
+      "Use solid warm colors (surface, surfaceSecondary) for all floating elements to keep the technology 'invisible' and organic."
+    ],
+    "dont's": [
+      "Do not use blur or glassmorphism. It feels too tech-heavy, SaaS-like, and detracts from the warm, hand-drawn editorial feel."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-blur",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Hoje",
+      "purpose": "Answers 'is my mom okay?' in 3 seconds. The ultimate calm state.",
+      "states": {
+        "loading": "Soft pulsing skeleton matching surfaceSecondary.",
+        "empty": "Should never be empty, always shows base status.",
+        "error": "A gentle inline message suggesting a reload, avoiding alarming red colors."
+      },
+      "layout": "1. Large Fraunces greeting 'Tudo bem com Dona Maria'.\n2. Hero Status Card (Verde-Oliva #5C6E49 background) with a photo of the mother, stating the last confirmation time and current status.\n3. Medication Panel: Horizontal row of pill-shaped chips showing progress (2 de 3 ✓).\n4. Shift Panel: Simple card showing who is on duty today and tomorrow.\n5. AI Summary: A soft, tinted card at the bottom summarizing the week's insights in a conversational tone."
+    },
+    {
+      "name": "Escala",
+      "purpose": "Organizes the family care shifts and highlights missing coverage without guilt.",
+      "states": {
+        "loading": "Calendar skeleton.",
+        "empty": "Illustration of a calendar with a prompt to add the first shift.",
+        "error": "Soft error message."
+      },
+      "layout": "1. Horizontal weekly calendar strip.\n2. Vertical list of shift slots (Morning, Afternoon, Night).\n3. Filled shifts show the assigned family member's avatar and name.\n4. Empty shifts are highlighted in Âmbar (#E8A854) with an inviting 'Assumir plantão' button. No red alerts."
+    },
+    {
+      "name": "Saúde",
+      "purpose": "A chronological, non-clinical timeline of health events and WhatsApp audio logs.",
+      "states": {
+        "loading": "Timeline skeleton.",
+        "empty": "Illustration of a stethoscope/heart with 'Nenhum registro hoje'.",
+        "error": "Soft error message."
+      },
+      "layout": "1. Vertical timeline on the left edge.\n2. Cards extending from the timeline for each event (e.g., Blood pressure logged, Audio from caregiver).\n3. Floating or sticky bottom CTA 'Gerar PDF para consulta' using brandPrimary (#C4633F)."
+    },
+    {
+      "name": "Custos",
+      "purpose": "Transparently splits family costs via Pix without making money a friction point.",
+      "states": {
+        "loading": "Cost breakdown skeleton.",
+        "empty": "Zero costs state with 'Nenhuma despesa este mês'.",
+        "error": "Soft error message."
+      },
+      "layout": "1. Total monthly cost displayed prominently at the top in Fraunces.\n2. List of itemized expenses with a thumbnail of the receipt photo.\n3. Pix status indicators (Pago, Pendente) per family member.\n4. Prominent 'Adicionar despesa' button."
+    }
+  ],
+  "components": {
+    "SOS_Button": {
+      "description": "Central and permanent floating button in the bottom tab bar.",
+      "color": "error (#A9402E) - THE ONLY RED IN THE APP",
+      "shape": "Large circle (pill), floating slightly above the tab bar line.",
+      "icon": "Phone or Siren (Phosphor), filled, clear and obvious."
+    },
+    "Status_Card": {
+      "description": "The 'All Good' hero card on the Home screen.",
+      "background": "success (#5C6E49)",
+      "text_color": "onSuccess (#FFFFFF)",
+      "layout": "Row layout. Left: Circular avatar of Dona Maria. Right: Status text ('Tudo bem', 'Última confirmação: 20h').",
+      "radius": "lg"
+    }
+  },
+  "images": {
+    "dona_maria_photo": {
+      "url": "https://images.unsplash.com/photo-1539527073261-80acb74db86e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxicmF6aWxpYW4lMjBzZW5pb3IlMjB3b21hbiUyMHNtaWxpbmclMjBwb3J0cmFpdCUyMHdhcm0lMjBsaWdodGluZ3xlbnwwfHx8fDE3ODQyMTIxNzB8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Warm portrait of a smiling Brazilian senior woman"
+    },
+    "medical_receipt": {
+      "url": "https://images.unsplash.com/photo-1625980344922-a4df108b2bd0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwxfHxtZWRpY2FsJTIwYmlsbCUyMHBhcGVyJTIwcmVjZWlwdHxlbnwwfHx8fDE3ODMyODYyNzF8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Medical paper receipt held in hand"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly adhere to the color palette provided: Creme (#F7F0E6) for background, Marrom-Café (#3E2F25) for text. DO NOT use hospital white or absolute black.",
+    "The UI MUST feel like an editorial journal (calm, high contrast text, large fonts ≥16px) combined with human warmth. Avoid all clinical UI tropes (e.g., no health-blue, no sharp scary charts).",
+    "Implement the Tab Bar with 5 slots. The middle slot is reserved for the SOS button which must be Vermelho-Barro (#A9402E). This is the ONLY place red is allowed in the entire app.",
+    "The Home screen status card must use Verde-Oliva (#5C6E49) to communicate a calm 'All is well' state without requiring the user to read charts or logs.",
+    "Ensure all touch targets are at least 48x48pt for accessibility.",
+    "Use Fraunces exclusively for headings to give an editorial, book-like feel. Use Nunito Sans for all body text, labels, and UI elements.",
+    "Avoid glassmorphism or heavy shadows. Keep the surfaces matte and distinct through color and subtle borders, representing 'invisible technology'."
+  ]
+}
