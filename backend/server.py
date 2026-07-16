@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Request, HTTPException, Header
+from fastapi import FastAPI, APIRouter, Request, HTTPException, Header, UploadFile, File
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -7,9 +7,11 @@ import os
 import logging
 import uuid
 import httpx
+import base64
+import json as _json
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 
 ROOT_DIR = Path(__file__).parent
@@ -321,15 +323,304 @@ async def weekly_summary(authorization: Optional[str] = Header(None)):
         )
     return {"summary": text}
 
+# ---------- Clinical (dados clínicos do idoso) ----------
+class ClinicalData(BaseModel):
+    blood_type: Optional[str] = None
+    allergies: List[str] = []
+    conditions: List[str] = []  # diagnoses like "hipertensão"
+    surgeries: List[Dict[str, str]] = []  # [{when, description}]
+    continuous_meds: List[Dict[str, str]] = []  # [{name, dosage, notes}]
+    health_plan: Optional[Dict[str, str]] = None  # {name, plan, card_number}
+    emergency_contacts: List[Dict[str, str]] = []  # [{name, phone, relation}]
+    notes: Optional[str] = None
+    mobility: Optional[str] = None  # "independente", "assistida", "cadeira", "acamada"
+    cognitive: Optional[str] = None  # "orientada", "leve", "moderada", "avancada"
+
+@api_router.get("/clinico")
+async def get_clinico(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    doc = await db.clinical.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
+    if not doc:
+        doc = {
+            "blood_type": "O+",
+            "allergies": ["Dipirona"],
+            "conditions": ["Hipertensão", "Diabetes tipo 2"],
+            "surgeries": [{"when": "2019", "description": "Catarata (olho direito)"}],
+            "continuous_meds": [
+                {"name": "Losartana", "dosage": "50mg 1x ao dia", "notes": "manhã"},
+                {"name": "Metformina", "dosage": "500mg 1x ao dia", "notes": "após almoço"},
+                {"name": "Sinvastatina", "dosage": "20mg 1x ao dia", "notes": "à noite"},
+            ],
+            "health_plan": {"name": "Unimed", "plan": "Nacional", "card_number": "1234 5678 9012"},
+            "emergency_contacts": [
+                {"name": "Ana (filha)", "phone": "(11) 98765-4321", "relation": "filha"},
+                {"name": "Dr. Ricardo", "phone": "(11) 3333-4444", "relation": "cardiologista"},
+            ],
+            "notes": "Gosta de conversar após o almoço. Dorme cedo.",
+            "mobility": "independente",
+            "cognitive": "orientada",
+        }
+        await db.clinical.insert_one({"owner_id": user["user_id"], **doc})
+    return doc
+
+@api_router.put("/clinico")
+async def update_clinico(data: ClinicalData, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    payload = data.model_dump()
+    await db.clinical.update_one(
+        {"owner_id": user["user_id"]},
+        {"$set": payload},
+        upsert=True,
+    )
+    return {"ok": True, "clinico": payload}
+
+# ---------- Elder onboarding ----------
+class ElderUpdate(BaseModel):
+    name: Optional[str] = None
+    age: Optional[int] = None
+    photo_url: Optional[str] = None
+    consent_given: Optional[bool] = None
+
+@api_router.put("/elder")
+async def update_elder(data: ElderUpdate, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    payload = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not payload:
+        raise HTTPException(status_code=400, detail="Empty payload")
+    await db.elders.update_one({"owner_id": user["user_id"]}, {"$set": payload}, upsert=True)
+    elder = await db.elders.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
+    return elder
+
+@api_router.get("/onboarding/status")
+async def onboarding_status(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    uid = user["user_id"]
+    elder = await db.elders.find_one({"owner_id": uid}, {"_id": 0})
+    clinical = await db.clinical.find_one({"owner_id": uid}, {"_id": 0})
+    members = await db.members.count_documents({"owner_id": uid})
+    steps = {
+        "consent": bool(elder and elder.get("consent_given")),
+        "clinical": bool(clinical),
+        "circle": members > 0,
+    }
+    completed = sum(1 for v in steps.values() if v)
+    return {"steps": steps, "completed": completed, "total": 3}
+
+# ---------- Círculo (members + invitations) ----------
+class MemberIn(BaseModel):
+    name: str
+    role: str  # "coordenador" | "irmao" | "cuidador" | "profissional"
+    phone: Optional[str] = None
+    email: Optional[str] = None
+
+@api_router.get("/members")
+async def list_members(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    docs = await db.members.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
+    return {"members": docs}
+
+@api_router.post("/members")
+async def add_member(data: MemberIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    mid = f"mem_{uuid.uuid4().hex[:10]}"
+    avatar = (data.name.strip()[:1] or "?").upper()
+    doc = {
+        "owner_id": user["user_id"],
+        "id": mid,
+        "name": data.name,
+        "role": data.role,
+        "phone": data.phone,
+        "email": data.email,
+        "avatar": avatar,
+        "created_at": now_utc(),
+    }
+    await db.members.insert_one(doc)
+    return {
+        "id": mid, "name": data.name, "role": data.role,
+        "phone": data.phone, "email": data.email, "avatar": avatar,
+    }
+
+@api_router.delete("/members/{member_id}")
+async def del_member(member_id: str, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    await db.members.delete_one({"owner_id": user["user_id"], "id": member_id})
+    return {"ok": True}
+
+class InviteIn(BaseModel):
+    name: str
+    role: str
+
+@api_router.post("/invitations")
+async def create_invitation(data: InviteIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    code = uuid.uuid4().hex[:8].upper()
+    inv = {
+        "owner_id": user["user_id"],
+        "owner_name": user["name"],
+        "code": code,
+        "name": data.name,
+        "role": data.role,
+        "accepted": False,
+        "created_at": now_utc(),
+        "expires_at": now_utc() + timedelta(days=7),
+    }
+    await db.invitations.insert_one(inv)
+    return {"code": code, "name": data.name, "role": data.role, "invite_url": f"/convite/{code}"}
+
+@api_router.get("/invitations/{code}")
+async def get_invitation(code: str):
+    inv = await db.invitations.find_one({"code": code}, {"_id": 0, "owner_id": 0})
+    if not inv:
+        raise HTTPException(status_code=404, detail="Convite não encontrado")
+    elder = await db.elders.find_one({"owner_id": (await db.invitations.find_one({"code": code}))["owner_id"]}, {"_id": 0, "owner_id": 0})
+    return {"invitation": inv, "elder_name": elder["name"] if elder else "sua família"}
+
+# ---------- WhatsApp gentle nudge (deep-link, no Meta API) ----------
+class NudgeIn(BaseModel):
+    to_name: str
+    to_phone: Optional[str] = None
+    amount: float
+    expense_title: str
+
+@api_router.post("/whatsapp/nudge")
+async def whatsapp_nudge(data: NudgeIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    msg = (
+        f"Oi {data.to_name}! 💛\n\nQuando puder, dá uma passadinha na sua parte do custo do mês da mamãe: "
+        f"*{data.expense_title}* — R$ {data.amount:.2f}. "
+        f"Sem pressa, quando der. Obrigada por estar no cuidado com a gente."
+    )
+    phone = (data.to_phone or "").replace("+", "").replace(" ", "").replace("(", "").replace(")", "").replace("-", "")
+    base = f"https://wa.me/{phone}" if phone else "https://wa.me/"
+    from urllib.parse import quote
+    url = f"{base}?text={quote(msg)}"
+    return {"url": url, "message": msg}
+
+# ---------- OCR de recibos (GPT-4o Vision) ----------
+class OcrIn(BaseModel):
+    image_base64: str  # data uri or raw base64
+
+@api_router.post("/ocr/receipt")
+async def ocr_receipt(payload: OcrIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    img = payload.image_base64
+    if img.startswith("data:"):
+        img = img.split(",", 1)[1]
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+        api_key = os.environ.get("EMERGENT_LLM_KEY")
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"ocr_{user['user_id']}_{uuid.uuid4().hex[:6]}",
+            system_message=(
+                "Você extrai dados de recibos brasileiros. "
+                "Responda SOMENTE JSON no formato: "
+                '{"title": "...", "amount": 0.00, "category": "Medicamentos|Consultas|Cuidadora|Transporte|Alimentação|Outros", "date": "DD/MM"}. '
+                "Sem texto extra. Se algum campo não estiver claro, use '' ou 0."
+            ),
+        ).with_model("openai", "gpt-4o")
+        image = ImageContent(image_base64=img)
+        um = UserMessage(text="Extraia os dados deste recibo em JSON.", file_contents=[image])
+        text = (await chat.send_message(um) or "").strip()
+        # strip markdown fences if any
+        if text.startswith("```"):
+            text = text.strip("`")
+            if text.lower().startswith("json"):
+                text = text[4:].strip()
+        parsed = _json.loads(text)
+    except Exception as e:
+        logging.warning(f"OCR fallback: {e}")
+        parsed = {"title": "Recibo (revise)", "amount": 0.0, "category": "Outros", "date": datetime.now().strftime("%d/%m")}
+    return parsed
+
+class ExpenseIn(BaseModel):
+    title: str
+    amount: float
+    category: str
+    date: str
+    paid_by: str
+    split_status: Dict[str, str] = {}
+    receipt_thumb: Optional[str] = None
+
+@api_router.post("/expenses")
+async def add_expense(data: ExpenseIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    exp_id = f"exp_{uuid.uuid4().hex[:8]}"
+    doc = {"owner_id": user["user_id"], "id": exp_id, **data.model_dump()}
+    await db.expenses.insert_one(doc)
+    return {"id": exp_id, **data.model_dump()}
+
+# ---------- Pulseira QR (público) + SOS scans ----------
+class ScanIn(BaseModel):
+    finder_name: Optional[str] = None
+    finder_phone: Optional[str] = None
+    note: Optional[str] = None
+    coords: Optional[str] = None
+    address: Optional[str] = None
+
+@api_router.get("/pulseira/{elder_id}")
+async def public_pulseira(elder_id: str):
+    elder = await db.elders.find_one({"id": elder_id}, {"_id": 0, "owner_id": 0})
+    if not elder:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    clinical = await db.clinical.find_one({"owner_id": (await db.elders.find_one({"id": elder_id}))["owner_id"]}, {"_id": 0, "owner_id": 0}) or {}
+    return {
+        "elder": {"name": elder.get("name"), "age": elder.get("age"), "photo_url": elder.get("photo_url")},
+        "blood_type": clinical.get("blood_type"),
+        "allergies": clinical.get("allergies", []),
+        "conditions": clinical.get("conditions", []),
+        "emergency_contacts": clinical.get("emergency_contacts", []),
+    }
+
+@api_router.post("/pulseira/{elder_id}/scan")
+async def public_scan(elder_id: str, data: ScanIn):
+    elder = await db.elders.find_one({"id": elder_id}, {"_id": 0})
+    if not elder:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    scan = {
+        "id": f"scan_{uuid.uuid4().hex[:8]}",
+        "elder_id": elder_id,
+        "owner_id": elder["owner_id"],
+        "finder_name": data.finder_name,
+        "finder_phone": data.finder_phone,
+        "note": data.note,
+        "coords": data.coords,
+        "address": data.address,
+        "when": now_utc(),
+    }
+    await db.wristband_scans.insert_one(scan)
+    return {"ok": True, "message": "Obrigado! Avisamos a família."}
+
+@api_router.get("/pulseira/{elder_id}/scans")
+async def list_scans(elder_id: str, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    elder = await db.elders.find_one({"id": elder_id, "owner_id": user["user_id"]}, {"_id": 0})
+    if not elder:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    scans = await db.wristband_scans.find({"elder_id": elder_id}, {"_id": 0, "owner_id": 0}).sort("when", -1).to_list(50)
+    for s in scans:
+        if isinstance(s.get("when"), datetime):
+            s["when"] = s["when"].isoformat()
+    return {"scans": scans}
+
 @api_router.post("/sos")
 async def sos(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    elder = await db.elders.find_one({"owner_id": user["user_id"]}, {"_id": 0})
+    scans_cursor = db.wristband_scans.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).sort("when", -1).limit(5)
+    scans = await scans_cursor.to_list(5)
+    for s in scans:
+        if isinstance(s.get("when"), datetime):
+            s["when"] = s["when"].isoformat()
     return {
         "status": "acionado",
-        "last_location": "Rua das Acácias, 210 — Bairro Jardim",
+        "elder_id": elder.get("id") if elder else None,
+        "elder_name": elder.get("name") if elder else "Dona Maria",
+        "last_location": scans[0]["address"] if scans and scans[0].get("address") else "Rua das Acácias, 210 — Bairro Jardim",
         "last_seen": "há 4 minutos",
         "circle_notified": ["Ana", "Carla", "Bruno", "Dona Rita"],
         "call_number": "192",
+        "recent_scans": scans,
     }
 
 @api_router.get("/")

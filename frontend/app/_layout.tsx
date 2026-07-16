@@ -38,10 +38,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading) return;
-    const inTabs = segments[0] === "(tabs)";
-    if (user && !inTabs) {
+    const first = segments[0];
+    const isPublic = first === "pulseira" || first === "convite";
+    const inTabs = first === "(tabs)";
+    if (isPublic) return; // public routes don't force auth
+    if (user && !inTabs && first !== "clinico" && first !== "circulo" && first !== "sos") {
       router.replace("/(tabs)/hoje");
-    } else if (!user && inTabs) {
+    } else if (!user && (inTabs || first === "clinico" || first === "circulo" || first === "sos")) {
       router.replace("/");
     }
   }, [user, loading, segments, router]);
@@ -73,6 +76,10 @@ export default function RootLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="sos" options={{ presentation: "modal", animation: "fade" }} />
+            <Stack.Screen name="clinico" />
+            <Stack.Screen name="circulo" />
+            <Stack.Screen name="pulseira/[id]" />
+            <Stack.Screen name="convite/[code]" />
           </Stack>
         </AuthGate>
       </AuthProvider>

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Activity
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { colors, spacing, radius, type, shadow } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
 
@@ -16,10 +17,12 @@ type HojeData = {
 
 export default function HojeScreen() {
   const { authFetch, user, logout } = useAuth();
+  const router = useRouter();
   const [data, setData] = useState<HojeData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [onboarding, setOnboarding] = useState<{ steps: { consent: boolean; clinical: boolean; circle: boolean }; completed: number; total: number } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -40,11 +43,18 @@ export default function HojeScreen() {
     setLoadingSummary(false);
   }, [authFetch]);
 
-  useEffect(() => { load(); loadSummary(); }, [load, loadSummary]);
+  const loadOnboarding = useCallback(async () => {
+    try {
+      const r = await authFetch("/api/onboarding/status");
+      if (r.ok) setOnboarding(await r.json());
+    } catch {}
+  }, [authFetch]);
+
+  useEffect(() => { load(); loadSummary(); loadOnboarding(); }, [load, loadSummary, loadOnboarding]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([load(), loadSummary()]);
+    await Promise.all([load(), loadSummary(), loadOnboarding()]);
     setRefreshing(false);
   };
 
@@ -99,6 +109,55 @@ export default function HojeScreen() {
             <Text style={styles.statusSub}>Última confirmação às {data.elder.last_confirmation}</Text>
           </View>
         </View>
+
+        {/* Quick shortcuts */}
+        <View style={styles.shortcutRow}>
+          <Pressable style={styles.shortcut} onPress={() => router.push("/clinico")} testID="shortcut-clinico">
+            <View style={[styles.shortIcon, { backgroundColor: colors.olive }]}>
+              <Ionicons name="medkit" size={20} color={colors.onOlive} />
+            </View>
+            <Text style={styles.shortLabel}>Dados clínicos</Text>
+          </Pressable>
+          <Pressable style={styles.shortcut} onPress={() => router.push("/circulo")} testID="shortcut-circulo">
+            <View style={[styles.shortIcon, { backgroundColor: colors.brand }]}>
+              <Ionicons name="people" size={20} color={colors.onBrand} />
+            </View>
+            <Text style={styles.shortLabel}>Círculo</Text>
+          </Pressable>
+        </View>
+
+        {/* Onboarding checklist — only when incomplete */}
+        {onboarding && onboarding.completed < onboarding.total && (
+          <View style={styles.onboardCard} testID="onboarding-checklist">
+            <View style={styles.onboardHeader}>
+              <View>
+                <Text style={styles.onboardTitle}>Primeiros passos</Text>
+                <Text style={styles.onboardSub}>{onboarding.completed} de {onboarding.total} completos</Text>
+              </View>
+              <View style={styles.progressPill}>
+                <Text style={styles.progressText}>{Math.round((onboarding.completed / onboarding.total) * 100)}%</Text>
+              </View>
+            </View>
+            <ChecklistItem
+              done={onboarding.steps.consent}
+              label="Registrar o consentimento da Dona Maria"
+              onPress={() => router.push("/clinico")}
+              testID="step-consent"
+            />
+            <ChecklistItem
+              done={onboarding.steps.clinical}
+              label="Preencher os dados clínicos"
+              onPress={() => router.push("/clinico")}
+              testID="step-clinical"
+            />
+            <ChecklistItem
+              done={onboarding.steps.circle}
+              label="Convidar a família para o círculo"
+              onPress={() => router.push("/circulo")}
+              testID="step-circle"
+            />
+          </View>
+        )}
 
         {/* Medications */}
         <View style={styles.sectionHeader}>
@@ -183,6 +242,18 @@ export default function HojeScreen() {
   );
 }
 
+function ChecklistItem({ done, label, onPress, testID }: { done: boolean; label: string; onPress: () => void; testID?: string }) {
+  return (
+    <Pressable style={styles.checkRow} onPress={onPress} testID={testID}>
+      <View style={[styles.checkBox, done && styles.checkBoxDone]}>
+        {done && <Ionicons name="checkmark" size={14} color={colors.onOlive} />}
+      </View>
+      <Text style={[styles.checkLabel, done && styles.checkLabelDone]}>{label}</Text>
+      {!done && <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceSoft} />}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: spacing.lg },
@@ -200,6 +271,23 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontFamily: type.sans, color: colors.onOlive, fontSize: 12, fontWeight: "700" },
   statusTitle: { fontFamily: type.serif, fontSize: 20, color: colors.onOlive, fontWeight: "600" },
   statusSub: { fontFamily: type.sans, fontSize: 14, color: "rgba(255,255,255,0.85)", marginTop: 2 },
+
+  shortcutRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
+  shortcut: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
+  shortIcon: { width: 36, height: 36, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  shortLabel: { fontFamily: type.sans, fontSize: 14, color: colors.onSurface, fontWeight: "600", flex: 1 },
+
+  onboardCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.amber, padding: spacing.lg, marginTop: spacing.lg, gap: spacing.sm },
+  onboardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
+  onboardTitle: { fontFamily: type.serif, fontSize: 18, color: colors.onSurface, fontWeight: "600" },
+  onboardSub: { fontFamily: type.sans, fontSize: 12, color: colors.onSurfaceSoft, marginTop: 2 },
+  progressPill: { backgroundColor: colors.amber, paddingHorizontal: 12, paddingVertical: 4, borderRadius: radius.pill },
+  progressText: { fontFamily: type.sans, fontSize: 13, fontWeight: "800", color: colors.onAmber },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: 8 },
+  checkBox: { width: 24, height: 24, borderRadius: radius.pill, borderWidth: 2, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  checkBoxDone: { backgroundColor: colors.olive, borderColor: colors.olive },
+  checkLabel: { flex: 1, fontFamily: type.sans, fontSize: 14, color: colors.onSurface },
+  checkLabelDone: { color: colors.onSurfaceSoft, textDecorationLine: "line-through" },
 
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.xl, marginBottom: spacing.md },
   sectionTitle: { fontFamily: type.serif, fontSize: 20, color: colors.onSurface, fontWeight: "600" },
