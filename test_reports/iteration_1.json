@@ -1,0 +1,40 @@
+{
+  "summary": "Full backend regression suite for Amparai — 25/25 pytest cases PASSED on the external preview URL. Coverage: root endpoint, auth guards (no-header & invalid-token) on 7 protected routes + medication toggle + auth/session, /api/hoje shape (Dona Maria, 3 meds 2 taken, hoje+amanha shifts, appointments), medication toggle flip-flip persistence, /api/escala gap + contribution dict, /api/saude with whatsapp_audio & ia sources, /api/custos totals & split_status, /api/summary/weekly Portuguese output free of forbidden words, /api/sos mocked payload, and /api/auth/logout invalidating token (last). Test session was re-seeded after logout.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_amparai_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "None — all backend endpoints working as spec. Optionally consider excluding forbidden voice words in the LLM system prompt via a post-processing guard (currently the fallback text is used if no EMERGENT_LLM_KEY is set; both paths tested clean).",
+    "Cosmetic: frontend .env exposes EXPO_PUBLIC_BACKEND_URL rather than EXPO_BACKEND_URL — tests were adapted to use it; main agent should confirm this matches frontend code convention."
+  ],
+  "critical_code_review_comments": [
+    "server.py is a single file (~365 lines) — acceptable for MVP, but if more domains are added consider splitting routers (auth/hoje/escala/saude/custos/summary/sos).",
+    "seed_family_for_user is idempotent via `existing = elders.find_one({owner_id})` check — good.",
+    "MongoDB _id is properly excluded from every query projection — good.",
+    "weekly_summary has a graceful LLM fallback with Portuguese text that also avoids the forbidden vocabulary — good.",
+    "toggle_medication returns 404 correctly for unknown med (not asserted in tests but code path present).",
+    "auth/logout is idempotent and returns ok:true even without a valid Bearer — acceptable but consider 401 if header missing for stricter semantics."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py (new)",
+    "/app/backend/tests/test_amparai_api.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "not tested (skipped per request)"},
+  "seed_data_creation": "Re-seeded MongoDB user + user_sessions for user_test123 / Bearer test_bearer_token_abc before AND after the run (logout test invalidates the session, so re-seed was executed at the end).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Test session Bearer test_bearer_token_abc is currently valid in amparai_db. The seed_family_for_user helper is idempotent so re-running tests won't duplicate data. If the logout test invalidates the session, re-run the mongosh snippet in /app/memory/test_credentials.md (or the auto-heal command at the end of the test run) to restore it. Use EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env — there is no EXPO_BACKEND_URL variable.",
+  "rca_of_issue": "N/A — no bugs found."
+}

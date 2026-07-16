@@ -1,20 +1,53 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { LogBox } from "react-native";
+import { LogBox, Platform } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import * as Linking from "expo-linking";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
+import { AuthProvider, useAuth } from "@/src/context/AuthContext";
+import { colors } from "@/src/theme";
 
+LogBox.ignoreAllLogs(true);
 
-// Disable logbox errors etc so that users can see the app
-// and agent works as expected.
-LogBox.ignoreAllLogs(true)
-
-// Keep the native splash visible from cold start until icon fonts register.
-// Required because @expo/vector-icons' componentDidMount fallback fires
-// Font.loadAsync against a broken vendor path if any <Icon> mounts before
-// the family is registered — which throws on Android Expo Go.
 SplashScreen.preventAutoHideAsync();
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { user, loading, loginWithSessionId } = useAuth();
+  const router = useRouter();
+  const segments = useSegments();
+
+  // Handle web session_id in URL hash on mount
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash || "";
+    const query = window.location.search || "";
+    let sessionId: string | null = null;
+    const hashMatch = hash.match(/session_id=([^&]+)/);
+    const queryMatch = query.match(/session_id=([^&]+)/);
+    if (hashMatch) sessionId = decodeURIComponent(hashMatch[1]);
+    else if (queryMatch) sessionId = decodeURIComponent(queryMatch[1]);
+    if (sessionId) {
+      loginWithSessionId(sessionId).then(() => {
+        window.history.replaceState(null, "", window.location.pathname);
+      });
+    }
+  }, [loginWithSessionId]);
+
+  useEffect(() => {
+    if (loading) return;
+    const inTabs = segments[0] === "(tabs)";
+    if (user && !inTabs) {
+      router.replace("/(tabs)/hoje");
+    } else if (!user && inTabs) {
+      router.replace("/");
+    }
+  }, [user, loading, segments, router]);
+
+  return <>{children}</>;
+}
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
@@ -25,9 +58,24 @@ export default function RootLayout() {
     }
   }, [loaded, error]);
 
-  // If the CDN is unreachable we fall through on error rather than wedging
-  // the app — icons will tofu, but the app still boots.
   if (!loaded && !error) return null;
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <SafeAreaProvider>
+      <AuthProvider>
+        <AuthGate>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.surface },
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="sos" options={{ presentation: "modal", animation: "fade" }} />
+          </Stack>
+        </AuthGate>
+      </AuthProvider>
+    </SafeAreaProvider>
+  );
 }
