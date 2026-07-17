@@ -45,3 +45,12 @@ Este documento registra as decisões de arquitetura e decisões de projeto tomad
   * **Identidade do app**: `bundleIdentifier`/`package` renomeados de `com.emergent.mamatoday.ew5nda` para `com.amparai.app` antes da 1ª publicação (mudar após publicar criaria app novo na store).
   * **Segredos**: `google-services.json` / `GoogleService-Info.plist` tratados como EAS Secret e adicionados ao `.gitignore` (nunca versionados), mesmo o Expo os considerando não sensíveis — postura conservadora coerente com os guarda-corpos de app de saúde.
 * **Impacto / consequências**: O app **deixa de rodar em Expo Go** (passa a exigir development build). O fluxo **web** (`signInWithPopup`) e o **backend** permanecem intactos. O login demo (`signInWithEmailAndPassword`) fica apenas como fallback `__DEV__` quando o módulo nativo não está presente. `webClientId` (tipo Web) injetado via `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
+
+## 8. Hospedagem do App Web no Firebase Hosting
+* **Contexto**: O app web (export estático do Expo, `output: "single"`) não estava publicado em lugar nenhum — só rodava local. Para servir em `amparai.com.br` era preciso escolher um host.
+* **Alternativas avaliadas**:
+  * *Cloud Run (container estático)*: já usado no backend, mas overkill para SPA — mantém serviço rodando e exige gerir SSL/domínio e domínio autorizado do Auth manualmente. Descartada.
+  * *Vercel/Netlify*: ótima DX, mas adiciona fornecedor fora da stack Google. Descartada por fragmentação.
+  * *Firebase Hosting* ✅ escolhida: mesmo projeto `amparai-ce7f4`, SSL automático, CDN, tier grátis, e o domínio customizado entra automaticamente nos **domínios autorizados do Firebase Auth** (login web funciona sem passo extra).
+* **Decisão**: `firebase.json` ganhou bloco `hosting` (`public: frontend/dist`, rewrites SPA → `/index.html`); criado `.firebaserc` (projeto default `amparai-ce7f4`) e script `export:web`. Domínio: **apex + www** (`amparai.com.br` e `www.amparai.com.br`), DNS no **Registro.br**.
+* **Impacto**: Deploy do web com `expo export --platform web` + `firebase deploy --only hosting`. Sem custo recorrente relevante (tier grátis). Backend e mobile intocados.

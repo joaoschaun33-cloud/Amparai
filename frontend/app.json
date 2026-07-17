@@ -42,6 +42,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3f91f411-f65d-4310-a920-3e1432145a99"
+      }
+    },
+    "owner": "joaoschauns-team"
   }
 }
