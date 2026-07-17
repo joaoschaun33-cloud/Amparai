@@ -49,6 +49,13 @@ We have successfully migrated the Amparai app architecture from the mock/Emergen
 - Deployed rules successfully to Firebase, ensuring all Firestore queries must pass through our FastAPI backend Admin SDK.
 - Confirmed that the public wristband route `/pulseira/[id]` remains public and functions without requiring authentication.
 
+### 7. Native Google Sign-In & Web Isolation (Phase 7)
+- Integrated `@react-native-google-signin/google-signin` on the frontend.
+- Created `frontend/src/utils/googleSignIn.ts` and `frontend/src/utils/googleSignIn.native.ts` to isolate the native dependency. This guarantees the application compiles cleanly on Expo Web, preventing crashes caused by native-only code in browser bundles.
+- Renamed application identifiers (`bundleIdentifier` / `package`) to `com.amparai.app` in `app.json`.
+- Configured a new `eas.json` for managed `development` profile builds.
+- Ignored `google-services.json` and `GoogleService-Info.plist` across the repository to keep credentials secure.
+
 ---
 
 ## 🛠️ Verification & Test Results
@@ -56,7 +63,7 @@ We have successfully migrated the Amparai app architecture from the mock/Emergen
 ### 1. Backend Integration Tests
 Executed the complete test suite against the FastAPI server running locally and communicating directly with our production Firestore:
 ```bash
-======================= 43 passed in 108.73s (0:01:48) ========================
+======================= 43 passed in 108.53s (0:01:48) ========================
 ```
 
 ### 2. Frontend Login & Auth Flow
@@ -72,3 +79,5 @@ All changes have been successfully committed by phase and pushed to the remote r
 2. `Phase 3 & 5: Migrate data layer to Firestore AsyncClient and integrate Gemini 2.5 Flash for OCR & Weekly Summary`
 3. `Phase 4 & 6: Add Cloud Run Dockerfile, .gcloudignore and firestore.rules deny-all policy`
 4. `Docs: Add migration walkthrough and update architecture decisions`
+5. `Fix: Remove forbidden push title word, update test URL, add process logs and gitattributes`
+6. `Phase 7: Implement native Google Sign-In with platform-specific web isolation and update logs`
