@@ -9,10 +9,7 @@ import { colors, spacing, radius, type, shadow } from "@/src/theme";
 const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 type PublicElder = {
-  elder: { name: string; age: number; photo_url: string };
-  blood_type?: string;
-  allergies: string[];
-  conditions: string[];
+  elder: { name: string; photo_url: string };
   emergency_contacts: { name: string; phone: string; relation: string }[];
 };
 
@@ -80,21 +77,8 @@ export default function PulseiraPublic() {
           <View style={styles.heroCard}>
             <Image source={{ uri: data.elder.photo_url }} style={styles.avatar} contentFit="cover" />
             <Text style={styles.name}>Esta é {data.elder.name}</Text>
-            <Text style={styles.age}>{data.elder.age} anos</Text>
             <Text style={styles.thanks}>Obrigada por ter parado para ajudar. 💛</Text>
           </View>
-
-          {(data.blood_type || data.allergies.length > 0 || data.conditions.length > 0) && (
-            <View style={styles.clinicalCard}>
-              <View style={styles.clinicalHead}>
-                <Ionicons name="medkit" size={20} color={colors.brand} />
-                <Text style={styles.clinicalTitle}>Informações médicas</Text>
-              </View>
-              {data.blood_type && <Text style={styles.clinicalLine}>Tipo sanguíneo: <Text style={styles.bold}>{data.blood_type}</Text></Text>}
-              {data.allergies.length > 0 && <Text style={styles.clinicalLine}>Alergias: <Text style={styles.bold}>{data.allergies.join(", ")}</Text></Text>}
-              {data.conditions.length > 0 && <Text style={styles.clinicalLine}>Condições: <Text style={styles.bold}>{data.conditions.join(", ")}</Text></Text>}
-            </View>
-          )}
 
           {data.emergency_contacts.length > 0 && (
             <View style={styles.contactsCard}>

@@ -233,11 +233,11 @@ class TestPulseira:
         assert r.status_code == 200
         d = r.json()
         assert d["elder"]["name"] == "Dona Maria"
-        assert "age" in d["elder"]
+        assert "age" not in d["elder"]
         assert "photo_url" in d["elder"]
-        assert "blood_type" in d
-        assert isinstance(d.get("allergies"), list)
-        assert isinstance(d.get("conditions"), list)
+        assert "blood_type" not in d
+        assert "allergies" not in d
+        assert "conditions" not in d
         assert isinstance(d.get("emergency_contacts"), list)
 
     def test_public_pulseira_404(self, api_client):

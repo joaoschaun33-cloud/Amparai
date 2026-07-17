@@ -10,7 +10,7 @@ import httpx
 import base64
 import math
 import json as _json
-import stripe
+
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -18,6 +18,7 @@ from datetime import datetime, timezone, timedelta
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR.parent / '.env')  # chaves de IA no .env da raiz do repo
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -37,8 +38,7 @@ _push_client = httpx.AsyncClient(
     timeout=10.0,
 )
 
-# Stripe
-stripe.api_key = os.environ.get("STRIPE_API_KEY", "")
+
 
 # ---------- Models ----------
 class SessionRequest(BaseModel):
@@ -578,12 +578,17 @@ async def public_pulseira(elder_id: str):
     elder = await db.elders.find_one({"id": elder_id}, {"_id": 0})
     if not elder:
         raise HTTPException(status_code=404, detail="Não encontrado")
+    raw_name = elder.get("name", "")
+    parts = raw_name.split()
+    first_name = raw_name
+    if parts:
+        if parts[0].lower() in ["dona", "seu", "sr", "sra", "dr", "dra"]:
+            first_name = " ".join(parts[:2])
+        else:
+            first_name = parts[0]
     clinical = await db.clinical.find_one({"owner_id": elder["owner_id"]}, {"_id": 0, "owner_id": 0}) or {}
     return {
-        "elder": {"name": elder.get("name"), "age": elder.get("age"), "photo_url": elder.get("photo_url")},
-        "blood_type": clinical.get("blood_type"),
-        "allergies": clinical.get("allergies", []),
-        "conditions": clinical.get("conditions", []),
+        "elder": {"name": first_name, "photo_url": elder.get("photo_url")},
         "emergency_contacts": clinical.get("emergency_contacts", []),
     }
 
