@@ -20,6 +20,7 @@ We have successfully migrated the Amparai app architecture from the mock/Emergen
 - Rewrote `AuthContext.tsx` to handle authentication using the Firebase Client SDK:
   - **Web**: Uses `signInWithPopup` with `GoogleAuthProvider` for native Google Login popup.
   - **Native/Expo Go**: Dynamically logs in using a pre-created Firebase Auth test user (`demo@amparai.com.br` / `demo123456`) mapping to the local regression testing user ID (`user_test123`) to ensure frictionless Expo Go debugging.
+  - **Security Gate**: Placed the demo login account credentials strictly behind a `__DEV__` check to prevent shipping credentials or backdoors in production builds.
   - Monitors credentials automatically via `onAuthStateChanged`.
 - Rewrote the FastAPI backend to verify incoming JWT ID tokens in the Authorization headers statelessly using the `firebase-admin` SDK.
 
@@ -40,6 +41,7 @@ We have successfully migrated the Amparai app architecture from the mock/Emergen
 - Replaced legacy Emergent integrations (Claude/OpenAI via custom libraries) with the official **Google GenAI Python SDK (`google-genai`)** using **Gemini 2.5 Flash** for:
   - Weekly summary generations (`/api/summary/weekly`).
   - Multimodal receipt OCR extraction (`/api/ocr/receipt`) with native JSON structured output configurations.
+- Migrated push notifications from the legacy Emergent client to **Firebase Cloud Messaging (FCM)** using the `firebase_admin.messaging` SDK. Tokens are saved in a `device_tokens` collection in Firestore, ensuring completely independent cloud-managed delivery.
 - Pointed the frontend `.env` to hit the new Cloud Run URL.
 
 ### 6. Public Wristband Security (Phase 6)
@@ -61,3 +63,12 @@ Executed the complete test suite against the FastAPI server running locally and 
 Using the browser automation agent, we navigated to `http://localhost:8081` (Metro web server) and clicked **"Entrar com Google"**.
 - Confirmed that the Firebase SDK successfully opens the Google Authentication popup dialog.
 - Verified that no client SDK initialization errors or `auth/argument-error` messages are thrown.
+
+---
+
+## 📦 Git History & Commits
+All changes have been successfully committed by phase and pushed to the remote repository:
+1. `Phase 1 & 2: Integrate Firebase Auth on frontend and enable stateless authentication`
+2. `Phase 3 & 5: Migrate data layer to Firestore AsyncClient and integrate Gemini 2.5 Flash for OCR & Weekly Summary`
+3. `Phase 4 & 6: Add Cloud Run Dockerfile, .gcloudignore and firestore.rules deny-all policy`
+4. `Docs: Add migration walkthrough and update architecture decisions`
