@@ -8,7 +8,9 @@ import logging
 import uuid
 import httpx
 import base64
+import math
 import json as _json
+import stripe
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -25,6 +27,18 @@ app = FastAPI(title="Amparai API")
 api_router = APIRouter(prefix="/api")
 
 EMERGENT_AUTH_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
+
+# ---------- Push (Emergent-managed) ----------
+PUSH_BASE_URL = "https://integrations.emergentagent.com"
+PUSH_KEY = os.environ.get("EMERGENT_PUSH_KEY", "placeholder")
+_push_client = httpx.AsyncClient(
+    base_url=PUSH_BASE_URL,
+    headers={"X-Push-Key": PUSH_KEY},
+    timeout=10.0,
+)
+
+# Stripe
+stripe.api_key = os.environ.get("STRIPE_API_KEY", "")
 
 # ---------- Models ----------
 class SessionRequest(BaseModel):
@@ -604,6 +618,281 @@ async def list_scans(elder_id: str, authorization: Optional[str] = Header(None))
             s["when"] = s["when"].isoformat()
     return {"scans": scans}
 
+# ---------- Push register + send_push helper ----------
+class RegisterPushBody(BaseModel):
+    user_id: str
+    platform: str
+    device_token: str
+
+@api_router.post("/register-push", status_code=201)
+async def register_push(body: RegisterPushBody):
+    try:
+        resp = await _push_client.post("/api/v1/push/users/register", json=body.model_dump())
+        if resp.status_code == 401:
+            raise HTTPException(500, "EMERGENT_PUSH_KEY missing or invalid")
+        if resp.status_code >= 500:
+            raise HTTPException(502, "Push provider unavailable")
+        resp.raise_for_status()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.warning(f"register_push failed (non-blocking): {e}")
+    return {"status": "registered"}
+
+async def send_push(recipients: List[str], data: Dict[str, Any], idempotency_key: Optional[str] = None) -> None:
+    if not recipients:
+        return
+    if len(recipients) > 100:
+        raise ValueError("max 100 recipients per /trigger call")
+    if "title" not in data or "message" not in data:
+        raise ValueError("data must include title and message")
+    payload: Dict[str, Any] = {"recipients": recipients, "data": data}
+    if idempotency_key:
+        payload["$idempotency_key"] = idempotency_key
+    resp = await _push_client.post("/api/v1/push/trigger", json=payload)
+    if resp.status_code == 401:
+        raise HTTPException(500, "EMERGENT_PUSH_KEY missing or invalid")
+    if resp.status_code >= 500:
+        raise HTTPException(502, "Push provider unavailable")
+    resp.raise_for_status()
+
+# ---------- Stripe Checkout ----------
+class CheckoutIn(BaseModel):
+    expense_id: str
+    member_name: str  # the sibling paying
+    return_url: str
+
+@api_router.post("/checkout/session")
+async def create_checkout(body: CheckoutIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    if not stripe.api_key:
+        raise HTTPException(500, "Stripe não configurado")
+    expense = await db.expenses.find_one({"owner_id": user["user_id"], "id": body.expense_id}, {"_id": 0})
+    if not expense:
+        raise HTTPException(404, "Despesa não encontrada")
+    split = expense.get("split_status", {})
+    n = max(1, len(split))
+    share_cents = int(round((expense["amount"] / n) * 100))
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "brl",
+                    "product_data": {
+                        "name": f"Cota — {expense['title']}",
+                        "description": f"Contribuição de {body.member_name} para o cuidado da mamãe",
+                    },
+                    "unit_amount": share_cents,
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=f"{body.return_url}?status=success&session_id={{CHECKOUT_SESSION_ID}}&expense_id={body.expense_id}&member={body.member_name}",
+            cancel_url=f"{body.return_url}?status=cancel",
+            metadata={
+                "expense_id": body.expense_id,
+                "member_name": body.member_name,
+                "owner_id": user["user_id"],
+            },
+        )
+        return {"checkout_url": session.url, "session_id": session.id, "amount": share_cents / 100.0}
+    except Exception as e:
+        raise HTTPException(400, f"Stripe error: {e}")
+
+@api_router.get("/checkout/verify")
+async def verify_checkout(session_id: str, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    if not stripe.api_key:
+        raise HTTPException(500, "Stripe não configurado")
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        raise HTTPException(400, f"Stripe error: {e}")
+    if session.get("payment_status") != "paid":
+        return {"paid": False, "status": session.get("payment_status")}
+    meta = session.get("metadata") or {}
+    if meta.get("owner_id") != user["user_id"]:
+        raise HTTPException(403, "Sessão de outro usuário")
+    expense_id = meta.get("expense_id")
+    member_name = meta.get("member_name")
+    if expense_id and member_name:
+        await db.expenses.update_one(
+            {"owner_id": user["user_id"], "id": expense_id},
+            {"$set": {f"split_status.{member_name}": "pago"}},
+        )
+    return {"paid": True, "expense_id": expense_id, "member": member_name}
+
+# ---------- Location & geofence (proactive tracking) ----------
+class LocationSettings(BaseModel):
+    home_address: Optional[str] = None
+    home_lat: Optional[float] = None
+    home_lng: Optional[float] = None
+    radius_m: int = 150  # geofence radius in meters
+    quiet_start: str = "22:00"  # HH:MM
+    quiet_end: str = "06:00"
+
+def _haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    R = 6371000.0
+    phi1 = math.radians(lat1); phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1); dlam = math.radians(lng2 - lng1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlam/2)**2
+    return 2 * R * math.asin(math.sqrt(a))
+
+@api_router.get("/location/settings")
+async def get_location_settings(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    s = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
+    if not s:
+        s = {
+            "home_address": "Rua das Acácias, 210 — Bairro Jardim",
+            "home_lat": -23.5610,
+            "home_lng": -46.6560,
+            "radius_m": 150,
+            "quiet_start": "22:00",
+            "quiet_end": "06:00",
+        }
+        await db.location_settings.insert_one({"owner_id": user["user_id"], **s})
+    return s
+
+@api_router.put("/location/settings")
+async def update_location_settings(body: LocationSettings, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    payload = {k: v for k, v in body.model_dump().items() if v is not None}
+    await db.location_settings.update_one({"owner_id": user["user_id"]}, {"$set": payload}, upsert=True)
+    return {"ok": True}
+
+@api_router.get("/location/current")
+async def location_current(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    settings = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}) or {}
+    latest = await db.location_pings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}, sort=[("when", -1)])
+    trail_cursor = db.location_pings.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).sort("when", -1).limit(30)
+    trail = await trail_cursor.to_list(30)
+    for t in trail:
+        if isinstance(t.get("when"), datetime):
+            t["when"] = t["when"].isoformat()
+    if latest and isinstance(latest.get("when"), datetime):
+        latest["when"] = latest["when"].isoformat()
+    home_lat = settings.get("home_lat"); home_lng = settings.get("home_lng")
+    in_home = True
+    dist_m = 0.0
+    if latest and home_lat is not None and home_lng is not None:
+        dist_m = _haversine_m(latest["lat"], latest["lng"], home_lat, home_lng)
+        in_home = dist_m <= settings.get("radius_m", 150)
+    return {
+        "settings": settings,
+        "current": latest,
+        "trail": list(reversed(trail)),
+        "in_home": in_home,
+        "distance_m": int(dist_m),
+    }
+
+class LocationPing(BaseModel):
+    lat: float
+    lng: float
+    address: Optional[str] = None
+    source: str = "pulseira"  # "pulseira" | "porta_sensor" | "scan_qr"
+
+@api_router.post("/location/ping")
+async def location_ping(body: LocationPing, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    doc = {
+        "owner_id": user["user_id"],
+        "id": f"ping_{uuid.uuid4().hex[:10]}",
+        "lat": body.lat,
+        "lng": body.lng,
+        "address": body.address,
+        "source": body.source,
+        "when": now_utc(),
+    }
+    await db.location_pings.insert_one(doc)
+
+    # Proactive check: outside geofence?
+    settings = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0}) or {}
+    home_lat = settings.get("home_lat"); home_lng = settings.get("home_lng")
+    if home_lat is not None and home_lng is not None:
+        dist = _haversine_m(body.lat, body.lng, home_lat, home_lng)
+        radius = settings.get("radius_m", 150)
+        if dist > radius:
+            try:
+                await send_push(
+                    recipients=[user["user_id"]],
+                    data={
+                        "title": "Dona Maria saiu de casa",
+                        "message": f"Está a {int(dist)}m — acompanhamento iniciado.",
+                        "action_url": "/(tabs)/hoje",
+                    },
+                    idempotency_key=f"leave_{doc['id']}",
+                )
+            except Exception as e:
+                logging.warning(f"Push (leave home) failed: {e}")
+    return {"id": doc["id"]}
+
+@api_router.post("/location/simulate")
+async def simulate_leave(authorization: Optional[str] = Header(None)):
+    """Demo: seed a series of pings walking away from home to simulate the elder leaving."""
+    user = await require_user(authorization)
+    settings = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0}) or {}
+    home_lat = settings.get("home_lat", -23.5610); home_lng = settings.get("home_lng", -46.6560)
+    # generate 6 pings walking ~50m east each
+    now = now_utc()
+    pings = []
+    step_deg = 0.00045  # ~50m
+    for i in range(1, 7):
+        lat = home_lat + step_deg * i * 0.6
+        lng = home_lng + step_deg * i * 1.0
+        pings.append({
+            "owner_id": user["user_id"],
+            "id": f"ping_{uuid.uuid4().hex[:10]}",
+            "lat": lat,
+            "lng": lng,
+            "address": f"Rua próxima — {i*50}m de casa",
+            "source": "pulseira",
+            "when": now + timedelta(minutes=i),
+        })
+    await db.location_pings.insert_many(pings)
+    try:
+        await send_push(
+            recipients=[user["user_id"]],
+            data={
+                "title": "Acompanhamento iniciado",
+                "message": "Dona Maria saiu de casa. Estamos com ela.",
+                "action_url": "/(tabs)/hoje",
+            },
+            idempotency_key=f"sim_{now.isoformat()}",
+        )
+    except Exception as e:
+        logging.warning(f"Push (simulate) failed: {e}")
+    return {"ok": True, "seeded": len(pings)}
+
+@api_router.post("/location/clear")
+async def clear_pings(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    await db.location_pings.delete_many({"owner_id": user["user_id"]})
+    return {"ok": True}
+
+# ---------- Medication reminder (mock: sends a push now) ----------
+@api_router.post("/medications/{med_id}/remind")
+async def remind_medication(med_id: str, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    med = await db.medications.find_one({"id": med_id, "owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
+    if not med:
+        raise HTTPException(404, "Not found")
+    try:
+        await send_push(
+            recipients=[user["user_id"]],
+            data={
+                "title": f"Hora do {med['name']}",
+                "message": f"{med['dosage']} — dá uma passadinha na mamãe 💛",
+                "action_url": "/(tabs)/hoje",
+            },
+            idempotency_key=f"med_{med_id}_{now_utc().date().isoformat()}",
+        )
+    except Exception as e:
+        logging.warning(f"Push (med reminder) failed: {e}")
+    return {"ok": True}
+
 @api_router.post("/sos")
 async def sos(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
@@ -613,15 +902,35 @@ async def sos(authorization: Optional[str] = Header(None)):
     for s in scans:
         if isinstance(s.get("when"), datetime):
             s["when"] = s["when"].isoformat()
+    # latest ping for real map
+    latest_ping = await db.location_pings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}, sort=[("when", -1)])
+    if latest_ping and isinstance(latest_ping.get("when"), datetime):
+        latest_ping["when"] = latest_ping["when"].isoformat()
+    settings = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}) or {}
+    # notify circle
+    try:
+        await send_push(
+            recipients=[user["user_id"]],
+            data={
+                "title": "SOS acionado",
+                "message": f"Modo busca em {elder.get('name') if elder else 'Dona Maria'} — todos avisados.",
+                "action_url": "/sos",
+            },
+            idempotency_key=f"sos_{user['user_id']}_{now_utc().isoformat()}",
+        )
+    except Exception as e:
+        logging.warning(f"Push (sos) failed: {e}")
     return {
         "status": "acionado",
         "elder_id": elder.get("id") if elder else None,
         "elder_name": elder.get("name") if elder else "Dona Maria",
-        "last_location": scans[0]["address"] if scans and scans[0].get("address") else "Rua das Acácias, 210 — Bairro Jardim",
+        "last_location": (latest_ping or {}).get("address") or (scans[0]["address"] if scans and scans[0].get("address") else settings.get("home_address", "Rua das Acácias, 210 — Bairro Jardim")),
         "last_seen": "há 4 minutos",
         "circle_notified": ["Ana", "Carla", "Bruno", "Dona Rita"],
         "call_number": "192",
         "recent_scans": scans,
+        "current_position": latest_ping,
+        "home": {"lat": settings.get("home_lat"), "lng": settings.get("home_lng"), "address": settings.get("home_address")},
     }
 
 @api_router.get("/")

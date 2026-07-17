@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import * as Notifications from 'expo-notifications';
 
 const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL;
 const TOKEN_KEY = 'amparai_session_token';
@@ -40,6 +41,24 @@ async function clearToken() {
   }
 }
 
+async function registerForPush(user_id: string) {
+  if (Platform.OS === 'web') return;
+  try {
+    const perm = await Notifications.requestPermissionsAsync();
+    if (perm.status !== 'granted') return;
+    const tokenResp = await Notifications.getDevicePushTokenAsync();
+    await fetch(`${BACKEND}/api/register-push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id,
+        platform: Platform.OS,
+        device_token: tokenResp.data,
+      }),
+    });
+  } catch {}
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -62,6 +81,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await r.json();
         setUser(data);
         setToken(t);
+        // Register push on every app open (native only, non-blocking)
+        registerForPush(data.user_id).catch(() => {});
         return true;
       }
     } catch {}
@@ -91,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await saveToken(data.session_token);
       setToken(data.session_token);
       setUser(data.user);
+      registerForPush(data.user.user_id).catch(() => {});
       return true;
     } catch {
       return false;
