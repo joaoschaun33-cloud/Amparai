@@ -86,3 +86,10 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# GCP Credentials
+service-account-key.json
+backend/service-account-key.json
+backend/.venv/
+backend/.pytest_cache/
+

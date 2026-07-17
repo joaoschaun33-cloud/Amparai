@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
+import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth } from '@/src/utils/firebase';
 
 const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL;
 const TOKEN_KEY = 'amparai_session_token';
@@ -12,7 +14,7 @@ type AuthContextValue = {
   user: User | null;
   token: string | null;
   loading: boolean;
-  loginWithSessionId: (sessionId: string) => Promise<boolean>;
+  loginWithGoogle: () => Promise<boolean>;
   logout: () => Promise<void>;
   authFetch: (path: string, init?: RequestInit) => Promise<Response>;
 };
@@ -65,7 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const authFetch = useCallback(async (path: string, init: RequestInit = {}) => {
-    const t = token || (await readToken());
+    const currentUser = auth.currentUser;
+    const t = currentUser ? await currentUser.getIdToken() : (token || (await readToken()));
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(init.headers as Record<string, string> | undefined),
@@ -81,7 +85,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await r.json();
         setUser(data);
         setToken(t);
-        // Register push on every app open (native only, non-blocking)
         registerForPush(data.user_id).catch(() => {});
         return true;
       }
@@ -93,34 +96,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      const t = await readToken();
-      if (t) await loadMe(t);
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        const t = await firebaseUser.getIdToken();
+        await saveToken(t);
+        setToken(t);
+        await loadMe(t);
+      } else {
+        await clearToken();
+        setUser(null);
+        setToken(null);
+      }
       setLoading(false);
-    })();
+    });
+    return unsubscribe;
   }, [loadMe]);
 
-  const loginWithSessionId = useCallback(async (sessionId: string) => {
+  const loginWithGoogle = useCallback(async () => {
     try {
-      const r = await fetch(`${BACKEND}/api/auth/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_token: sessionId }),
-      });
-      if (r.status !== 200) return false;
-      const data = await r.json();
-      await saveToken(data.session_token);
-      setToken(data.session_token);
-      setUser(data.user);
-      registerForPush(data.user.user_id).catch(() => {});
+      if (Platform.OS === 'web') {
+        const provider = new GoogleAuthProvider();
+        await signInWithPopup(auth, provider);
+      } else {
+        if (__DEV__) {
+          await signInWithEmailAndPassword(auth, "demo@amparai.com.br", "demo123456");
+        } else {
+          throw new Error("Login do Google nativo não configurado em ambiente de produção.");
+        }
+      }
       return true;
-    } catch {
+    } catch (e) {
+      console.error("Login failed:", e);
       return false;
     }
   }, []);
 
   const logout = useCallback(async () => {
     try {
+      await signOut(auth);
       const t = token || (await readToken());
       if (t) {
         await fetch(`${BACKEND}/api/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${t}` } });
@@ -132,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, loginWithSessionId, logout, authFetch }}>
+    <AuthContext.Provider value={{ user, token, loading, loginWithGoogle, logout, authFetch }}>
       {children}
     </AuthContext.Provider>
   );

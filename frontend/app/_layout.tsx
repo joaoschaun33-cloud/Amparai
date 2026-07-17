@@ -36,27 +36,9 @@ if (Platform.OS === "android") {
 }
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, loading, loginWithSessionId } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const segments = useSegments();
-
-  // Handle web session_id in URL hash on mount
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    if (typeof window === "undefined") return;
-    const hash = window.location.hash || "";
-    const query = window.location.search || "";
-    let sessionId: string | null = null;
-    const hashMatch = hash.match(/session_id=([^&]+)/);
-    const queryMatch = query.match(/session_id=([^&]+)/);
-    if (hashMatch) sessionId = decodeURIComponent(hashMatch[1]);
-    else if (queryMatch) sessionId = decodeURIComponent(queryMatch[1]);
-    if (sessionId) {
-      loginWithSessionId(sessionId).then(() => {
-        window.history.replaceState(null, "", window.location.pathname);
-      });
-    }
-  }, [loginWithSessionId]);
 
   // Push notification tap handlers (native only)
   useEffect(() => {

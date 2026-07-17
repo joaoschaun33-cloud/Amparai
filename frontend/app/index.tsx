@@ -9,29 +9,13 @@ import { colors, spacing, radius, type, shadow } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
 
 export default function Landing() {
-  const { loginWithSessionId, loading, user } = useAuth();
+  const { loginWithGoogle, loading, user } = useAuth();
   const [busy, setBusy] = useState(false);
 
   const handleLogin = async () => {
     setBusy(true);
     try {
-      const redirectUrl = Platform.OS === "web"
-        ? (typeof window !== "undefined" ? window.location.origin + "/" : "/")
-        : Linking.createURL("");
-      const authUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-
-      if (Platform.OS === "web") {
-        if (typeof window !== "undefined") window.location.href = authUrl;
-        return;
-      }
-
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
-      if (result.type === "success" && result.url) {
-        const hashMatch = result.url.match(/session_id=([^&]+)/);
-        if (hashMatch) {
-          await loginWithSessionId(decodeURIComponent(hashMatch[1]));
-        }
-      }
+      await loginWithGoogle();
     } finally {
       setBusy(false);
     }
