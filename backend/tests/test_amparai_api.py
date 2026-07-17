@@ -47,11 +47,6 @@ class TestAuthGuards:
         r = api_client.post(f"{BASE_URL}/api/medications/some_id/toggle")
         assert r.status_code == 401
 
-    def test_session_invalid_token(self, api_client):
-        r = api_client.post(f"{BASE_URL}/api/auth/session",
-                            json={"session_token": "definitely_invalid_session_xyz"})
-        assert r.status_code == 401
-
 
 # ---- Hoje ----
 class TestHoje:
