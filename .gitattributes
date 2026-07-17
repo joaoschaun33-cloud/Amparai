@@ -1,0 +1,15 @@
+# Enforce LF for all text files
+* text eol=lf
+
+# Prevent binary files from being treated as text and corrupted
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.pdf binary

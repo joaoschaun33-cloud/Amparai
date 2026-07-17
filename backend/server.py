@@ -1003,7 +1003,7 @@ async def send_push(recipients: List[str], data: Dict[str, Any], idempotency_key
         
         message = messaging.Message(
             notification=messaging.Notification(
-                title=data.get("title", "Alerta Amparai"),
+                title=data.get("title", "Amparai"),
                 body=data.get("message", ""),
             ),
             data={

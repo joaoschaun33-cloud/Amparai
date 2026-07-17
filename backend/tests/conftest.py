@@ -2,7 +2,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://mama-today.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://amparai-backend-750186946997.southamerica-east1.run.app").rstrip("/")
 TEST_BEARER = "test_bearer_token_abc"
 
 
