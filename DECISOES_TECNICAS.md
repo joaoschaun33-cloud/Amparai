@@ -33,3 +33,15 @@ Este documento registra as decisões de arquitetura e decisões de projeto tomad
 * **Contexto**: Os resumos semanais e OCR de recibos usavam modelos Claude (Anthropic) e GPT-4o (OpenAI).
 * **Decisão**: Migramos as chamadas para o modelo multimodal **Gemini 2.5 Flash** utilizando o SDK oficial `google-genai` com autenticação via `GEMINI_API_KEY`. No OCR, passamos o parâmetro `response_mime_type="application/json"` para receber o JSON do recibo estruturado de forma nativa e livre de formatações markdown.
 * **Impacto**: Economia expressiva de custo de inferência, latência reduzida e exclusão de dependências de terceiros.
+
+## 7. Google Sign-In Nativo via Credencial Firebase (Fase 7)
+* **Contexto**: Builds nativos de produção não tinham login funcional (o ramo nativo do `loginWithGoogle` só lançava erro fora de `__DEV__`). O backend confia exclusivamente no Firebase ID token (`onAuthStateChanged → getIdToken → /api/auth/me`), então o login nativo precisa terminar num usuário autenticado no Firebase — sem tocar o backend.
+* **Alternativas avaliadas**:
+  * *`expo-auth-session` (Google)*: 100% managed, roda em Expo Go, mas UX inferior (navegador em vez do seletor nativo de conta) e provider em depreciação. Descartada por fricção — usuário final é a família.
+  * *`@react-native-firebase`*: substituiria o Firebase JS SDK inteiro; mudança de stack grande e desnecessária. Descartada.
+  * *`@react-native-google-signin/google-signin` (16.1.2) + `signInWithCredential`* ✅ escolhida: seletor nativo de conta, lib recomendada pela doc do Expo, alinhada ao `PENDENCIAS.md` (SHA-1/Client IDs). O `idToken` do Google vira `GoogleAuthProvider.credential(idToken)` → `signInWithCredential(auth, cred)`.
+* **Decisões de infra (aprovadas pelo fundador em 2026-07-17)**:
+  * **Pipeline**: EAS Build (managed). Tier grátis; plano pago US$99/mês só se escalar — a acompanhar antes de virar custo recorrente.
+  * **Identidade do app**: `bundleIdentifier`/`package` renomeados de `com.emergent.mamatoday.ew5nda` para `com.amparai.app` antes da 1ª publicação (mudar após publicar criaria app novo na store).
+  * **Segredos**: `google-services.json` / `GoogleService-Info.plist` tratados como EAS Secret e adicionados ao `.gitignore` (nunca versionados), mesmo o Expo os considerando não sensíveis — postura conservadora coerente com os guarda-corpos de app de saúde.
+* **Impacto / consequências**: O app **deixa de rodar em Expo Go** (passa a exigir development build). O fluxo **web** (`signInWithPopup`) e o **backend** permanecem intactos. O login demo (`signInWithEmailAndPassword`) fica apenas como fallback `__DEV__` quando o módulo nativo não está presente. `webClientId` (tipo Web) injetado via `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.

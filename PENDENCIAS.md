@@ -6,13 +6,19 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 
 ## 🛑 Blockers de Release (Críticos)
 
-### 1. Google Sign-In Nativo para Produção Mobile
-* **Problema**: O fluxo de login em mobile está protegido pelo gate `__DEV__` e lança um erro em builds de produção. Atualmente, o login do Google no dispositivo móvel em produção não está funcional.
-* **Ação Necessária**:
-  1. Criar Client IDs de OAuth para iOS e Android no console do Google Cloud e associar as chaves hash SHA-1 do aplicativo.
-  2. Adicionar as chaves no console do Firebase Authentication (provedor Google).
-  3. Instalar e configurar as dependências de login nativo (ex: `@react-native-google-signin/google-signin` ou `expo-auth-session/providers/google`).
-  4. Atualizar a lógica do `AuthContext.tsx` para disparar o login social nativo em ambiente de release.
+### 1. Google Sign-In Nativo para Produção Mobile — 🟡 EM EXECUÇÃO (Fase 7)
+* **Problema**: Builds nativos de produção não tinham login funcional. Ver decisão de arquitetura em `DECISOES_TECNICAS.md` §7.
+* **Feito no código (commitado)**:
+  - [x] Dependência `@react-native-google-signin/google-signin@16.1.2` + config plugin Firebase no `app.json`.
+  - [x] `AuthContext.tsx`: login nativo real (`GoogleSignin.signIn()` → `GoogleAuthProvider.credential` → `signInWithCredential`); demo vira fallback `__DEV__`.
+  - [x] `bundleIdentifier`/`package` → `com.amparai.app`.
+  - [x] `eas.json` (perfil development), `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` no `.env`, `.gitignore` para os arquivos google-services.
+* **Pendente (passos de console/build — dependem do fundador)**:
+  1. Baixar `google-services.json` (app Android) e `GoogleService-Info.plist` (app iOS) do Firebase e subir como **EAS Secret**.
+  2. Registrar o **SHA-1** no Firebase (chave de upload da EAS + chave do Google Play App Signing).
+  3. Criar os apps Android/iOS no Firebase com o novo ID `com.amparai.app` (o ID antigo `com.emergent...` fica órfão).
+  4. `eas build --profile development`, instalar em device real e executar o teste de aceite.
+* **Critério de aceite**: device real → "Entrar com Google" → seletor nativo → `/api/auth/me` 200 → push registra. Evidência: vídeo do device + log do backend.
 
 ---
 

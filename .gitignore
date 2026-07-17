@@ -93,3 +93,9 @@ backend/service-account-key.json
 backend/.venv/
 backend/.pytest_cache/
 
+# Firebase mobile config (injetado via EAS Secret no build; nunca versionar)
+google-services.json
+GoogleService-Info.plist
+frontend/google-services.json
+frontend/GoogleService-Info.plist
+

@@ -2,10 +2,12 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithCredential, signInWithPopup, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { configureGoogleSignIn, signInWithGoogleNative } from '@/src/utils/googleSignIn';
 import { auth } from '@/src/utils/firebase';
 
 const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL;
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 const TOKEN_KEY = 'amparai_session_token';
 
 type User = { user_id: string; email: string; name: string; picture?: string | null };
@@ -66,6 +68,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      configureGoogleSignIn();
+    }
+  }, []);
+
   const authFetch = useCallback(async (path: string, init: RequestInit = {}) => {
     const currentUser = auth.currentUser;
     const t = currentUser ? await currentUser.getIdToken() : (token || (await readToken()));
@@ -118,10 +126,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const provider = new GoogleAuthProvider();
         await signInWithPopup(auth, provider);
       } else {
-        if (__DEV__) {
-          await signInWithEmailAndPassword(auth, "demo@amparai.com.br", "demo123456");
-        } else {
-          throw new Error("Login do Google nativo não configurado em ambiente de produção.");
+        try {
+          const idToken = await signInWithGoogleNative();
+          const credential = GoogleAuthProvider.credential(idToken);
+          await signInWithCredential(auth, credential);
+        } catch (nativeErr) {
+          if (__DEV__) {
+            await signInWithEmailAndPassword(auth, "demo@amparai.com.br", "demo123456");
+          } else {
+            throw nativeErr;
+          }
         }
       }
       return true;
