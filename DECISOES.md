@@ -1,5 +1,33 @@
 # Registro de Decisões de Projeto
 
+## [D-009] MedBag — marca-ingrediente da pasta de saúde
+
+### Decisão
+O módulo da pasta de saúde (D-008) chama-se **MedBag** (medbag.com.br, domínio do fundador). Um código, duas marcas — nunca dois produtos nesta fase.
+
+### Implicações para a engenharia (obrigatórias)
+1. Módulo com fronteira limpa: `backend/medbag/` — modelos, rotas e coleções próprias (prefixo `medbag_` ou subcoleção dedicada), para permitir extração futura sem refatorar o Amparai.
+2. Schema de **paciente genérico** (patient), não idoso-específico — o elder do Amparai é uma instância de patient.
+3. Link do médico servido sob domínio medbag.com.br com identidade MedBag ("histórico compartilhado com você pela família via MedBag").
+4. Na UI do Amparai, a seção Saúde exibe "MedBag incluso" — a marca aparece para a família como benefício da assinatura.
+5. PROIBIDO nesta fase: app MedBag separado, onboarding separado, marketing separado.
+
+## [D-008] Estrela Norte: a pasta de saúde da vida do idoso
+
+### Decisão
+A Amparai será o registro unificado e portátil da vida de saúde do idoso, controlado pela família: exames, receitas e laudos num só lugar; qualquer filho acessa; o próximo médico recebe tudo por link consentido. Princípios: o médico NUNCA precisa logar/adotar nada (família alimenta via foto+OCR; médico recebe link sem fricção); terminologia obrigatória "pasta de saúde da família" — NUNCA "prontuário eletrônico" (território regulado CFM/SBIS).
+
+### Preparação imediata (vale para a migração em curso)
+1. Modelagem dos dados de saúde no Firestore alinhada ao padrão **FHIR** (o mesmo da RNDS) — nomes de campos e estrutura compatíveis, mesmo sem integração agora.
+2. Documentos (exame, receita, laudo) como objetos de primeira classe: arquivo no Cloud Storage + metadados estruturados no Firestore, vinculados ao histórico.
+3. Rota "link do médico": versão compartilhável e somente-leitura do histórico, com consentimento registrado e expiração. Construção completa da visão: pós-piloto.
+4. Ingestão de documentos com hierarquia: **arquivo digital nativo primeiro** (encaminhar PDF via share sheet do celular e, futuramente, via WhatsApp; PDFs têm texto embutido — extração melhor e mais barata que OCR), foto como fallback para papel. O produto faz coaching ativo: após cada consulta na agenda, sugerir à família "peça o exame/receita em PDF na recepção". Receitas digitais assinadas (ICP-Brasil): guardar o código de validação como metadado.
+
+## [D-007] Porta de entrada em teste A/B (app vs kit)
+
+### Decisão
+A tese de entrada está em teste, não decidida: Oferta A = app "família fundadora" (assinatura) vs Oferta B = Kit Anjo físico. Dado decide (conversão a pagamento e CAC). Implicação para o código: nada de acoplar o onboarding ao hardware; o app precisa funcionar 100% sem kit.
+
 ## [D-004] Privacidade e Segurança dos Dados na Pulseira Pública
 
 ### Contexto
