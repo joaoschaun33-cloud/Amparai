@@ -99,3 +99,7 @@ GoogleService-Info.plist
 frontend/google-services.json
 frontend/GoogleService-Info.plist
 
+# Firebase CLI debug logs
+firebase-debug.log
+*firebase-debug.log*
+
