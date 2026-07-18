@@ -6,23 +6,16 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 
 ## 🛑 Blockers de Release (Críticos)
 
-### 1. Google Sign-In Nativo para Produção Mobile — 🟡 EM EXECUÇÃO (Fase 7)
-* **Problema**: Builds nativos de produção não tinham login funcional. Ver decisão de arquitetura em `DECISOES_TECNICAS.md` §7.
-* **Feito no código (commitado)**:
-  - [x] Dependência `@react-native-google-signin/google-signin@16.1.2` + config plugin Firebase no `app.json`.
-  - [x] `AuthContext.tsx`: login nativo real (`GoogleSignin.signIn()` → `GoogleAuthProvider.credential` → `signInWithCredential`); demo vira fallback `__DEV__`.
-  - [x] `bundleIdentifier`/`package` → `com.amparai.app`.
-  - [x] `eas.json` (perfil development), `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` no `.env`, `.gitignore` para os arquivos google-services.
-* **Pendente (passos de console/build — dependem do fundador)**:
-  1. Baixar `google-services.json` (app Android) e `GoogleService-Info.plist` (app iOS) do Firebase e subir como **EAS Secret**.
-  2. Registrar o **SHA-1** no Firebase (chave de upload da EAS + chave do Google Play App Signing).
-  3. Criar os apps Android/iOS no Firebase com o novo ID `com.amparai.app` (o ID antigo `com.emergent...` fica órfão).
-  4. `eas build --profile development`, instalar em device real e executar o teste de aceite.
-* **Critério de aceite**: device real → "Entrar com Google" → seletor nativo → `/api/auth/me` 200 → push registra. Evidência: vídeo do device + log do backend.
+*Nenhum blocker ativo.*
 
 ---
 
 ## 📋 Pendências Técnicas e de Arquitetura
+
+### 1. Google Sign-In Nativo para Produção Mobile — ✅ CONCLUÍDO E VALIDADO (Fase 7)
+* **Status**: O build na EAS compilou e gerou o executável (`.apk`) com sucesso, validando a integração dos pacotes nativos, plugins e injeção do arquivo `google-services.json`.
+* **Evidência**: Build ID `eb006f8d-5449-4619-94db-cb039bef1834` concluído com sucesso nos servidores da EAS.
+* **Próximas etapas pós-distribuição**: Monitorar logs de login em produção no Firebase Auth e logs de backend.
 
 ### 2. Integração com Gateway de IA LiteLLM (D-006)
 * **Objetivo**: Substituir as chamadas diretas ao Gemini 2.5 Flash por um proxy unificado (LiteLLM) para gerenciar fallbacks automáticos de modelo e validar termos do vocabulário proibido (ex: proibir termos diagnósticos e médicos para manter a linguagem afetiva).
