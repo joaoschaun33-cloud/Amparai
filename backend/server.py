@@ -232,9 +232,15 @@ class FirestoreDbClient:
         return FirestoreCollection(name, self.client)
 
 if cred_path.exists():
-    logging.info("Initializing Firestore Async Client...")
+    logging.info("Initializing Firestore Async Client with service account key...")
     creds = service_account.Credentials.from_service_account_file(str(cred_path))
     db_client = google_firestore.AsyncClient(credentials=creds, project=creds.project_id)
+    db = FirestoreDbClient(db_client)
+elif os.environ.get("K_SERVICE") or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT"):
+    # Running on Cloud Run or GCP — use Application Default Credentials
+    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT") or "amparai-ce7f4"
+    logging.info(f"Initializing Firestore Async Client with ADC (project={project_id})...")
+    db_client = google_firestore.AsyncClient(project=project_id)
     db = FirestoreDbClient(db_client)
 else:
     logging.warning("Firestore credentials key not found. Using MockDbClient for in-memory database.")
@@ -1330,5 +1336,4 @@ async def on_startup():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    if mongo_url:
-        client.close()
+    pass

@@ -21,7 +21,7 @@ import base64
 import pytest
 
 BASE_URL = os.environ.get(
-    "EXPO_PUBLIC_BACKEND_URL", "https://mama-today.preview.emergentagent.com"
+    "EXPO_PUBLIC_BACKEND_URL", "https://amparai-backend-750186946997.southamerica-east1.run.app"
 ).rstrip("/")
 TEST_BEARER = "test_bearer_token_abc"
 FORBIDDEN_WORDS = ["paciente", "idoso", "monitorar", "rastrear", "vigiar", "ALERTA", "anomalia"]
