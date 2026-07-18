@@ -6,16 +6,19 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 
 ## 🛑 Blockers de Release (Críticos)
 
-*Nenhum blocker ativo.*
+### 🔒 Rotacionar chaves de API expostas no build da EAS
+* **Problema**: O `.easignore` da raiz não excluía o `.env` da raiz. Como o EAS empacota a partir da raiz, as chaves `XAI_API_KEY`, `GROQ_API_KEY` e `GEMINI_API_KEY` foram enviadas no pacote do build para os servidores da EAS (build `eb006f8d`).
+* **Correção já aplicada no código**: `.easignore` passou a excluir `/.env`, `/.env.*` e o diretório `backend/` inteiro.
+* **Ação necessária (fundador)**: **rotacionar as três chaves** (Google AI Studio / xAI / Groq) e atualizar o `.env` / Secret Manager. A `GEMINI_API_KEY` está em uso em produção — prioridade máxima.
 
 ---
 
 ## 📋 Pendências Técnicas e de Arquitetura
 
-### 1. Google Sign-In Nativo para Produção Mobile — ✅ CONCLUÍDO E VALIDADO (Fase 7)
-* **Status**: O build na EAS compilou e gerou o executável (`.apk`) com sucesso, validando a integração dos pacotes nativos, plugins e injeção do arquivo `google-services.json`.
-* **Evidência**: Build ID `eb006f8d-5449-4619-94db-cb039bef1834` concluído com sucesso nos servidores da EAS.
-* **Próximas etapas pós-distribuição**: Monitorar logs de login em produção no Firebase Auth e logs de backend.
+### 1. Google Sign-In Nativo para Produção Mobile — 🟢 BUILD PRONTO / AGUARDANDO VALIDAÇÃO NO DEVICE (Fase 7)
+* **Status**: Código, plugins nativos e build na EAS concluídos. O APK compilou com sucesso — mas isso valida o *build*, não o *login*.
+* **Evidência de build**: Build ID `eb006f8d-5449-4619-94db-cb039bef1834` (EAS) finalizado com sucesso.
+* **Falta para marcar como validado (critério de aceite)**: instalar o APK no aparelho real → tocar em "Entrar com Google" → seletor nativo → `/api/auth/me` retorna 200 → push registra. Evidência: vídeo do fluxo + log do backend. **Só então mover para concluído.**
 
 ### 2. Integração com Gateway de IA LiteLLM (D-006)
 * **Objetivo**: Substituir as chamadas diretas ao Gemini 2.5 Flash por um proxy unificado (LiteLLM) para gerenciar fallbacks automáticos de modelo e validar termos do vocabulário proibido (ex: proibir termos diagnósticos e médicos para manter a linguagem afetiva).

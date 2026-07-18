@@ -26,9 +26,15 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# Segredos de servidor na raiz — NUNCA subir. Mantém apenas frontend/.env (só EXPO_PUBLIC_*).
+/.env
+/.env.*
 .env*.local
 *.tsbuildinfo
 app-example
+
+# Backend inteiro não faz parte do build do app Expo — evita subir código e segredos do servidor.
+backend/
 
 # GCP Credentials (MUST NEVER BE UPLOADED)
 service-account-key.json
