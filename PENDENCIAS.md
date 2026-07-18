@@ -15,10 +15,10 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 
 ## 📋 Pendências Técnicas e de Arquitetura
 
-### 1. Google Sign-In Nativo para Produção Mobile — 🟢 BUILD PRONTO / AGUARDANDO VALIDAÇÃO NO DEVICE (Fase 7)
-* **Status**: Código, plugins nativos e build na EAS concluídos. O APK compilou com sucesso — mas isso valida o *build*, não o *login*.
-* **Evidência de build**: Build ID `eb006f8d-5449-4619-94db-cb039bef1834` (EAS) finalizado com sucesso.
-* **Falta para marcar como validado (critério de aceite)**: instalar o APK no aparelho real → tocar em "Entrar com Google" → seletor nativo → `/api/auth/me` retorna 200 → push registra. Evidência: vídeo do fluxo + log do backend. **Só então mover para concluído.**
+### 1. Google Sign-In Nativo para Produção Mobile — 🟡 AGUARDANDO VALIDAÇÃO EM DISPOSITIVO REAL (Fase 7)
+* **Status**: O build na EAS compilou e gerou o executável (`.apk`) com sucesso (Build ID `eb006f8d-5449-4619-94db-cb039bef1834`), provando que as dependências, plugins e a injeção do arquivo `google-services.json` estão corretos. O login nativo real em produção ainda aguarda validação final no aparelho físico.
+* **Critério de aceite final**: Instalar o APK no device → Tocar "Entrar com Google" → abrir seletor nativo → carregar sessão → `/api/auth/me` retornar 200.
+* **Próximas etapas**: Monitorar os logs de login no Firebase Auth e no backend durante os testes.
 
 ### 2. Integração com Gateway de IA LiteLLM (D-006)
 * **Objetivo**: Substituir as chamadas diretas ao Gemini 2.5 Flash por um proxy unificado (LiteLLM) para gerenciar fallbacks automáticos de modelo e validar termos do vocabulário proibido (ex: proibir termos diagnósticos e médicos para manter a linguagem afetiva).
