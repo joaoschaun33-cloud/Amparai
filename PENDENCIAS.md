@@ -6,19 +6,25 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 
 ## 🛑 Blockers de Release (Críticos)
 
-### 🔒 Rotacionar chaves de API expostas no build da EAS
-* **Problema**: O `.easignore` da raiz não excluía o `.env` da raiz. Como o EAS empacota a partir da raiz, as chaves `XAI_API_KEY`, `GROQ_API_KEY` e `GEMINI_API_KEY` foram enviadas no pacote do build para os servidores da EAS (build `eb006f8d`).
-* **Correção já aplicada no código**: `.easignore` passou a excluir `/.env`, `/.env.*` e o diretório `backend/` inteiro.
-* **Ação necessária (fundador)**: **rotacionar as três chaves** (Google AI Studio / xAI / Groq) e atualizar o `.env` / Secret Manager. A `GEMINI_API_KEY` está em uso em produção — prioridade máxima.
+*Nenhum blocker ativo.*
 
 ---
 
 ## 📋 Pendências Técnicas e de Arquitetura
 
-### 1. Google Sign-In Nativo para Produção Mobile — 🟡 AGUARDANDO VALIDAÇÃO EM DISPOSITIVO REAL (Fase 7)
-* **Status**: O build na EAS compilou e gerou o executável (`.apk`) com sucesso (Build ID `eb006f8d-5449-4619-94db-cb039bef1834`), provando que as dependências, plugins e a injeção do arquivo `google-services.json` estão corretos. O login nativo real em produção ainda aguarda validação final no aparelho físico.
-* **Critério de aceite final**: Instalar o APK no device → Tocar "Entrar com Google" → abrir seletor nativo → carregar sessão → `/api/auth/me` retornar 200.
-* **Próximas etapas**: Monitorar os logs de login no Firebase Auth e no backend durante os testes.
+### 1. Google Sign-In Nativo para Produção Mobile — ✅ CONCLUÍDO E VALIDADO EM DEVICE (Fase 7, 21/07/2026)
+* **Status**: Login nativo com Google funcionando end-to-end em aparelho Android real, contra o backend de produção no Cloud Run.
+* **Evidência**:
+  - Build EAS `eb006f8d-5449-4619-94db-cb039bef1834` instalado em device físico.
+  - Seletor nativo de contas do Google abriu e autenticou com a conta real do fundador (não a conta demo — o fallback `__DEV__` não foi acionado).
+  - App carregou a home com o nome real do usuário, confirmando `/api/auth/me` 200.
+  - **Firebase Auth registra o login da conta Google em 21/07/2026.**
+* **Ressalva conhecida**: a validação foi feita com o build `development` conectado ao Metro. O módulo nativo é o mesmo em qualquer perfil, então o fluxo de auth está provado — mas vale instalar um build `preview`/standalone antes de distribuir para testadores externos.
+* **Chaves de API**: rotacionadas após a exposição no build EAS (Secret Manager v3); `.easignore` corrigido para não subir `/.env` nem `backend/`.
+
+### 1b. Build standalone (preview) para testadores — 🟡 PENDENTE
+* **Objetivo**: Gerar e validar um APK `preview` (JS embutido, sem depender do Metro) para distribuir a famílias testadoras.
+* **Ação Necessária**: `eas build --profile preview --platform android`, desinstalar o build de development do aparelho antes de instalar, e repetir o teste de login.
 
 ### 2. Integração com Gateway de IA LiteLLM (D-006)
 * **Objetivo**: Substituir as chamadas diretas ao Gemini 2.5 Flash por um proxy unificado (LiteLLM) para gerenciar fallbacks automáticos de modelo e validar termos do vocabulário proibido (ex: proibir termos diagnósticos e médicos para manter a linguagem afetiva).
