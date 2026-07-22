@@ -10,6 +10,43 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 
 ---
 
+## 🧹 Dados falsos em contas reais (auditoria de 22/07/2026)
+
+> Descobertos durante o teste de onboarding em conta nova. Todos são fabricação de dados
+> fictícios para famílias reais. Fix aplicado no mesmo padrão do seed: conta real recebe a
+> verdade; `test@`/`demo@` (SEEDED_ACCOUNTS) mantêm o exemplo para não quebrar a suíte.
+
+### ✅ F1. `GET /clinico` fabricava prontuário (corrigido, aguardando deploy)
+* Fabricava e **gravava** O+, Dipirona, Hipertensão, Losartana, Unimed etc. na conta real.
+  Grave: o tipo sanguíneo aparece na pulseira pública num socorro.
+* Corrigido: conta real recebe prontuário **em branco**, sem gravar nada.
+
+### ✅ F2. `POST /sos` mentia sobre quem foi avisado (corrigido, aguardando deploy)
+* Retornava fixo `circle_notified: ["Ana","Carla","Bruno","Dona Rita"]`, `last_seen: "há 4
+  minutos"` e endereço falso — no **fluxo de emergência**.
+* Corrigido: `circle_notified` vem dos membros reais (ou vazio); `last_location`/`last_seen`
+  só refletem dados reais.
+
+### ✅ F3. `POST /location/simulate` (corrigido, aguardando deploy)
+* Endpoint de demo que semeava pings "Dona Maria saiu de casa". Agora responde 403 para
+  conta real (só funciona em conta de demonstração).
+
+### 🔴 F4. Limpar resíduo da conta de teste `joaoschaun33@gmail.com`
+* Essa conta abriu a tela clínica **antes** do fix F1, então tem o prontuário falso gravado
+  no Firestore. **Ação**: apagar o documento dela na coleção `clinical` (e conferir `elders`)
+  para um reteste limpo.
+
+### 🟡 F5. Auditoria completa de fabricação de dados
+* F1–F3 foram achados por amostragem. Falta uma varredura sistemática de todas as rotas de
+  leitura em busca de outros defaults/fallbacks hardcoded (ex.: mensagens de push com "Dona
+  Maria", `circle_notified` "todos avisados").
+
+### 🟡 F6. UX de salvamento no perfil clínico
+* A tela clínica salva automaticamente ao sair, sem botão nem confirmação. Em dado sensível,
+  a família não tem feedback do que gravou. Revisar (confirmação explícita de salvamento).
+
+---
+
 ## 📋 Pendências Técnicas e de Arquitetura
 
 ### 1. Google Sign-In Nativo para Produção Mobile — ✅ CONCLUÍDO E VALIDADO EM DEVICE (Fase 7, 21/07/2026)

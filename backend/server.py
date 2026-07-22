@@ -710,26 +710,44 @@ async def get_clinico(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     doc = await db.clinical.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
     if not doc:
-        doc = {
-            "blood_type": "O+",
-            "allergies": ["Dipirona"],
-            "conditions": ["Hipertensão", "Diabetes tipo 2"],
-            "surgeries": [{"when": "2019", "description": "Catarata (olho direito)"}],
-            "continuous_meds": [
-                {"name": "Losartana", "dosage": "50mg 1x ao dia", "notes": "manhã"},
-                {"name": "Metformina", "dosage": "500mg 1x ao dia", "notes": "após almoço"},
-                {"name": "Sinvastatina", "dosage": "20mg 1x ao dia", "notes": "à noite"},
-            ],
-            "health_plan": {"name": "Unimed", "plan": "Nacional", "card_number": "1234 5678 9012"},
-            "emergency_contacts": [
-                {"name": "Ana (filha)", "phone": "(11) 98765-4321", "relation": "filha"},
-                {"name": "Dr. Ricardo", "phone": "(11) 3333-4444", "relation": "cardiologista"},
-            ],
-            "notes": "Gosta de conversar após o almoço. Dorme cedo.",
-            "mobility": "independente",
-            "cognitive": "orientada",
-        }
-        await db.clinical.insert_one({"owner_id": user["user_id"], **doc})
+        if user.get("email") in SEEDED_ACCOUNTS:
+            # Conta de teste/demo: prontuário de exemplo (persistido para a suíte e a demo).
+            doc = {
+                "blood_type": "O+",
+                "allergies": ["Dipirona"],
+                "conditions": ["Hipertensão", "Diabetes tipo 2"],
+                "surgeries": [{"when": "2019", "description": "Catarata (olho direito)"}],
+                "continuous_meds": [
+                    {"name": "Losartana", "dosage": "50mg 1x ao dia", "notes": "manhã"},
+                    {"name": "Metformina", "dosage": "500mg 1x ao dia", "notes": "após almoço"},
+                    {"name": "Sinvastatina", "dosage": "20mg 1x ao dia", "notes": "à noite"},
+                ],
+                "health_plan": {"name": "Unimed", "plan": "Nacional", "card_number": "1234 5678 9012"},
+                "emergency_contacts": [
+                    {"name": "Ana (filha)", "phone": "(11) 98765-4321", "relation": "filha"},
+                    {"name": "Dr. Ricardo", "phone": "(11) 3333-4444", "relation": "cardiologista"},
+                ],
+                "notes": "Gosta de conversar após o almoço. Dorme cedo.",
+                "mobility": "independente",
+                "cognitive": "orientada",
+            }
+            await db.clinical.insert_one({"owner_id": user["user_id"], **doc})
+        else:
+            # Família real: prontuário EM BRANCO. Nunca inventar dado de saúde (tipo
+            # sanguíneo, alergias, condições) — isso apareceria na pulseira num socorro
+            # real. E não gravamos nada: a família preenche e o PUT persiste.
+            doc = {
+                "blood_type": None,
+                "allergies": [],
+                "conditions": [],
+                "surgeries": [],
+                "continuous_meds": [],
+                "health_plan": None,
+                "emergency_contacts": [],
+                "notes": None,
+                "mobility": None,
+                "cognitive": None,
+            }
     return doc
 
 @api_router.put("/clinico")
@@ -1229,6 +1247,9 @@ async def location_ping(body: LocationPing, authorization: Optional[str] = Heade
 async def simulate_leave(authorization: Optional[str] = Header(None)):
     """Demo: seed a series of pings walking away from home to simulate the elder leaving."""
     user = await require_user(authorization)
+    # Recurso de demonstração: não grava pings falsos ("saiu de casa") em conta real.
+    if user.get("email") not in SEEDED_ACCOUNTS:
+        raise HTTPException(status_code=403, detail="Recurso disponível apenas na conta de demonstração.")
     settings = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0}) or {}
     home_lat = settings.get("home_lat", -23.5610); home_lng = settings.get("home_lng", -46.6560)
     # generate 6 pings walking ~50m east each
@@ -1303,6 +1324,9 @@ async def sos(authorization: Optional[str] = Header(None)):
     if latest_ping and isinstance(latest_ping.get("when"), datetime):
         latest_ping["when"] = latest_ping["when"].isoformat()
     settings = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}) or {}
+    is_seeded = user.get("email") in SEEDED_ACCOUNTS
+    members = await db.members.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).to_list(50)
+    member_names = [m.get("name") for m in members if m.get("name")]
     # notify circle
     try:
         await send_push(
@@ -1316,13 +1340,26 @@ async def sos(authorization: Optional[str] = Header(None)):
         )
     except Exception as e:
         logging.warning(f"Push (sos) failed: {e}")
+    if is_seeded:
+        # Conta de teste/demo: payload de exemplo (a suíte depende dele).
+        last_location = (latest_ping or {}).get("address") or (scans[0]["address"] if scans and scans[0].get("address") else settings.get("home_address", "Rua das Acácias, 210 — Bairro Jardim"))
+        last_seen = "há 4 minutos"
+        circle_notified = ["Ana", "Carla", "Bruno", "Dona Rita"]
+        elder_name = elder.get("name") if elder else "Dona Maria"
+    else:
+        # Família real: SÓ o que existe de verdade. Nunca inventar quem foi avisado
+        # (o círculo real vem dos membros) nem endereço/horário — é o fluxo de emergência.
+        last_location = (latest_ping or {}).get("address") or (scans[0].get("address") if scans else None) or settings.get("home_address")
+        last_seen = (latest_ping or {}).get("when")
+        circle_notified = member_names
+        elder_name = elder.get("name") if elder else None
     return {
         "status": "acionado",
         "elder_id": elder.get("id") if elder else None,
-        "elder_name": elder.get("name") if elder else "Dona Maria",
-        "last_location": (latest_ping or {}).get("address") or (scans[0]["address"] if scans and scans[0].get("address") else settings.get("home_address", "Rua das Acácias, 210 — Bairro Jardim")),
-        "last_seen": "há 4 minutos",
-        "circle_notified": ["Ana", "Carla", "Bruno", "Dona Rita"],
+        "elder_name": elder_name,
+        "last_location": last_location,
+        "last_seen": last_seen,
+        "circle_notified": circle_notified,
         "call_number": "192",
         "recent_scans": scans,
         "current_position": latest_ping,
