@@ -501,11 +501,19 @@ async def require_user(authorization: Optional[str]) -> dict:
             "updated_at": firestore.SERVER_TIMESTAMP,
         })
     
-    existing_elder = await db.elders.find_one({"owner_id": uid})
-    if not existing_elder:
-        await seed_family_for_user(uid)
-    
+    # Dados de exemplo NUNCA são criados para famílias reais: quem entra faz o
+    # onboarding e cadastra a pessoa de verdade. O seed existe só para a conta de
+    # teste (suíte de integração) e para a conta de demonstração.
+    if email in SEEDED_ACCOUNTS:
+        existing_elder = await db.elders.find_one({"owner_id": uid})
+        if not existing_elder:
+            await seed_family_for_user(uid)
+
     return user_dict
+
+# Contas que recebem dados de exemplo. Qualquer outro usuário entra com o app vazio
+# e passa pelo onboarding real.
+SEEDED_ACCOUNTS = {"test@amparai.com.br", "demo@amparai.com.br"}
 
 async def seed_family_for_user(user_id: str):
     existing = await db.elders.find_one({"owner_id": user_id})
@@ -748,8 +756,19 @@ async def update_elder(data: ElderUpdate, authorization: Optional[str] = Header(
     payload = {k: v for k, v in data.model_dump().items() if v is not None}
     if not payload:
         raise HTTPException(status_code=400, detail="Empty payload")
-    await db.elders.update_one({"owner_id": user["user_id"]}, {"$set": payload}, upsert=True)
-    elder = await db.elders.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
+    uid = user["user_id"]
+    existing = await db.elders.find_one({"owner_id": uid})
+    if not existing:
+        # Primeiro cadastro (onboarding): garante identificador próprio e vínculo com o
+        # dono da conta. Sem o "id" a pulseira e as rotas por elder_id não funcionam.
+        payload = {
+            **payload,
+            "id": f"elder_{uuid.uuid4().hex[:10]}",
+            "owner_id": uid,
+            "created_at": now_utc(),
+        }
+    await db.elders.update_one({"owner_id": uid}, {"$set": payload}, upsert=True)
+    elder = await db.elders.find_one({"owner_id": uid}, {"_id": 0, "owner_id": 0})
     return elder
 
 @api_router.get("/onboarding/status")
@@ -765,7 +784,16 @@ async def onboarding_status(authorization: Optional[str] = Header(None)):
         "circle": members > 0,
     }
     completed = sum(1 for v in steps.values() if v)
-    return {"steps": steps, "completed": completed, "total": 3}
+    medications = await db.medications.count_documents({"owner_id": uid})
+    # Campos adicionais (aditivos — não alteram o contrato de "steps"/"total"):
+    # o app usa para decidir se mostra o onboarding e qual é o próximo passo em destaque.
+    return {
+        "steps": steps,
+        "completed": completed,
+        "total": 3,
+        "has_elder": bool(elder),
+        "has_medications": medications > 0,
+    }
 
 # ---------- Círculo (members + invitations) ----------
 class MemberIn(BaseModel):

@@ -36,7 +36,7 @@ if (Platform.OS === "android") {
 }
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, needsOnboarding } = useAuth();
   const router = useRouter();
   const segments = useSegments();
 
@@ -70,12 +70,30 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     const isPublic = first === "pulseira" || first === "convite" || first === "pagamento";
     const inTabs = first === "(tabs)";
     if (isPublic) return;
-    if (user && !inTabs && first !== "clinico" && first !== "circulo" && first !== "sos" && first !== "localizacao") {
-      router.replace("/(tabs)/hoje");
-    } else if (!user && (inTabs || first === "clinico" || first === "circulo" || first === "sos" || first === "localizacao")) {
-      router.replace("/");
+
+    const inOnboarding = first === "onboarding";
+    const inAppRoute =
+      inTabs || first === "clinico" || first === "circulo" || first === "sos" || first === "localizacao";
+
+    if (!user) {
+      if (inAppRoute || inOnboarding) router.replace("/");
+      return;
     }
-  }, [user, loading, segments, router]);
+
+    // Conta sem a pessoa cuidada cadastrada vai para o onboarding — nunca para um app
+    // vazio. `null` significa "ainda verificando": não redireciona para não piscar tela.
+    if (needsOnboarding === true) {
+      if (!inOnboarding) router.replace("/onboarding");
+      return;
+    }
+    if (needsOnboarding === false && inOnboarding) {
+      router.replace("/(tabs)/hoje");
+      return;
+    }
+    if (!inTabs && !inOnboarding && !inAppRoute) {
+      router.replace("/(tabs)/hoje");
+    }
+  }, [user, loading, needsOnboarding, segments, router]);
 
   return <>{children}</>;
 }

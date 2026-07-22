@@ -16,6 +16,9 @@ type AuthContextValue = {
   user: User | null;
   token: string | null;
   loading: boolean;
+  /** null = ainda não sabemos; true = precisa cadastrar a pessoa cuidada. */
+  needsOnboarding: boolean | null;
+  refreshOnboarding: () => Promise<void>;
   loginWithGoogle: () => Promise<boolean>;
   logout: () => Promise<void>;
   authFetch: (path: string, init?: RequestInit) => Promise<Response>;
@@ -67,6 +70,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
+
+  // Descobre se a conta já tem a pessoa cuidada cadastrada. Contas novas caem no
+  // onboarding em vez de entrar num app vazio (ou, pior, com dados de exemplo).
+  const checkOnboarding = useCallback(async (t: string) => {
+    try {
+      const r = await fetch(`${BACKEND}/api/onboarding/status`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setNeedsOnboarding(!d.has_elder);
+        return;
+      }
+    } catch {}
+    // Na dúvida, não bloqueia o acesso ao app.
+    setNeedsOnboarding(false);
+  }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -94,14 +115,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data);
         setToken(t);
         registerForPush(data.user_id).catch(() => {});
+        await checkOnboarding(t);
         return true;
       }
     } catch {}
     await clearToken();
     setUser(null);
     setToken(null);
+    setNeedsOnboarding(null);
     return false;
-  }, []);
+  }, [checkOnboarding]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
@@ -114,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await clearToken();
         setUser(null);
         setToken(null);
+        setNeedsOnboarding(null);
       }
       setLoading(false);
     });
@@ -156,10 +180,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearToken();
     setUser(null);
     setToken(null);
+    setNeedsOnboarding(null);
   }, [token]);
 
+  // Rechecagem após o onboarding concluir (a tela chama isso antes de entrar no app).
+  const refreshOnboarding = useCallback(async () => {
+    const t = token || (await readToken());
+    if (t) await checkOnboarding(t);
+  }, [token, checkOnboarding]);
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, loginWithGoogle, logout, authFetch }}>
+    <AuthContext.Provider
+      value={{ user, token, loading, needsOnboarding, refreshOnboarding, loginWithGoogle, logout, authFetch }}
+    >
       {children}
     </AuthContext.Provider>
   );

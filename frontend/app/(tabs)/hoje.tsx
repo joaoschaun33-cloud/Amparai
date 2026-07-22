@@ -97,18 +97,36 @@ export default function HojeScreen() {
           </Pressable>
         </View>
 
-        {/* Status Card */}
-        <View style={styles.statusCard} testID="status-card">
-          <Image source={{ uri: data.elder.photo_url }} style={styles.avatar} contentFit="cover" />
-          <View style={{ flex: 1 }}>
-            <View style={styles.statusBadge}>
-              <View style={styles.dot} />
-              <Text style={styles.statusBadgeText}>Tudo bem</Text>
+        {/* Status Card — só afirma "tudo bem" quando existe confirmação de verdade.
+            Numa conta nova, sem nenhum registro, afirmar isso seria mentir sobre a
+            saúde de alguém — exatamente o oposto do que este produto promete. */}
+        {data.elder.last_confirmation ? (
+          <View style={styles.statusCard} testID="status-card">
+            {data.elder.photo_url ? (
+              <Image source={{ uri: data.elder.photo_url }} style={styles.avatar} contentFit="cover" />
+            ) : (
+              <View style={[styles.avatar, { alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.2)" }]}>
+                <Ionicons name="person" size={24} color={colors.onOlive} />
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <View style={styles.statusBadge}>
+                <View style={styles.dot} />
+                <Text style={styles.statusBadgeText}>Tudo bem</Text>
+              </View>
+              <Text style={styles.statusTitle}>Tudo bem com {data.elder.name}</Text>
+              <Text style={styles.statusSub}>Última confirmação às {data.elder.last_confirmation}</Text>
             </View>
-            <Text style={styles.statusTitle}>Tudo bem com {data.elder.name}</Text>
-            <Text style={styles.statusSub}>Última confirmação às {data.elder.last_confirmation}</Text>
           </View>
-        </View>
+        ) : (
+          <View style={styles.onboardCard} testID="status-card-empty">
+            <Text style={styles.onboardTitle}>O cuidado de {data.elder.name} começa aqui.</Text>
+            <Text style={styles.onboardSub}>
+              Assim que houver o primeiro registro do dia, você vai saber aqui — em três
+              segundos — que está tudo bem.
+            </Text>
+          </View>
+        )}
 
         {/* Quick shortcuts */}
         <View style={styles.shortcutRow}>
@@ -138,12 +156,9 @@ export default function HojeScreen() {
                 <Text style={styles.progressText}>{Math.round((onboarding.completed / onboarding.total) * 100)}%</Text>
               </View>
             </View>
-            <ChecklistItem
-              done={onboarding.steps.consent}
-              label="Registrar o consentimento da Dona Maria"
-              onPress={() => router.push("/clinico")}
-              testID="step-consent"
-            />
+            {/* O passo de consentimento sai daqui até existir de verdade (Fase 9).
+                Um item que diz "registrar consentimento" e leva para outra tela é
+                teatro de checklist — e consentimento de dado sensível não se finge. */}
             <ChecklistItem
               done={onboarding.steps.clinical}
               label="Preencher os dados clínicos"
