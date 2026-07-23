@@ -23,10 +23,10 @@ A Amparai será o registro unificado e portátil da vida de saúde do idoso, con
 3. Rota "link do médico": versão compartilhável e somente-leitura do histórico, com consentimento registrado e expiração. Construção completa da visão: pós-piloto.
 4. Ingestão de documentos com hierarquia: **arquivo digital nativo primeiro** (encaminhar PDF via share sheet do celular e, futuramente, via WhatsApp; PDFs têm texto embutido — extração melhor e mais barata que OCR), foto como fallback para papel. O produto faz coaching ativo: após cada consulta na agenda, sugerir à família "peça o exame/receita em PDF na recepção". Receitas digitais assinadas (ICP-Brasil): guardar o código de validação como metadado.
 
-## [D-007] Porta de entrada em teste A/B (app vs kit)
+## [D-007] RESOLVIDA: o app é a porta de entrada; o kit é oferta complementar
 
-### Decisão
-A tese de entrada está em teste, não decidida: Oferta A = app "família fundadora" (assinatura) vs Oferta B = Kit Anjo físico. Dado decide (conversão a pagamento e CAC). Implicação para o código: nada de acoplar o onboarding ao hardware; o app precisa funcionar 100% sem kit.
+### Decisão (fundador, 22/07/2026)
+O APP é o cavalo de Troia; o Kit Anjo é oferta para o subconjunto com risco de perambulação. Implicações para o código: o onboarding e todo o produto funcionam 100% sem hardware; nenhuma tela pode assumir que o kit existe; a seção de segurança apresenta o kit como "adicione proteção física" (upsell), nunca como pré-requisito. Em teste seguem apenas as mensagens de aquisição (3 variantes de landing, fora do app).
 
 ## [D-004] Privacidade e Segurança dos Dados na Pulseira Pública
 

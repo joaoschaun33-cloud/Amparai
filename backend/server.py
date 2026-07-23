@@ -449,6 +449,17 @@ class Appointment(BaseModel):
 def now_utc():
     return datetime.now(timezone.utc)
 
+def get_elder_display_name(elder: Optional[dict]) -> str:
+    if not elder or not elder.get("name"):
+        return "mamãe"
+    raw_name = elder["name"]
+    parts = raw_name.split()
+    if parts:
+        if parts[0].lower() in ["dona", "seu", "sr", "sra", "dr", "dra"] and len(parts) > 1:
+            return " ".join(parts[:2])
+        return parts[0]
+    return "mamãe"
+
 async def require_user(authorization: Optional[str]) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -652,6 +663,9 @@ async def weekly_summary(authorization: Optional[str] = Header(None)):
     context = "\n".join([f"- {e['when']}: {e['title']} — {e['detail']}" for e in events])
     med_ctx = "\n".join([f"- {m['name']} {m['dosage']} às {m['time']} — {'tomado' if m['taken'] else 'ainda não tomado'}" for m in meds])
 
+    elder = await db.elders.find_one({"owner_id": uid})
+    elder_name = elder.get("name") if (elder and elder.get("name")) else "Dona Maria"
+
     try:
         from google import genai
         from google.genai import types
@@ -662,13 +676,13 @@ async def weekly_summary(authorization: Optional[str] = Header(None)):
         client = genai.Client(api_key=api_key)
         system_prompt = (
             "Você é a melhor amiga enfermeira da família — carinhosa, precisa, calma. "
-            "Fale sobre a Dona Maria (a mãe do usuário) em português do Brasil, no tom da melhor amiga. "
+            f"Fale sobre a {elder_name} (a mãe/pessoa cuidada pelo usuário) em português do Brasil, no tom da melhor amiga. "
             "NUNCA diagnostique. NUNCA use as palavras: 'paciente', 'idoso', 'monitorar', 'rastrear', 'vigiar', 'ALERTA', 'anomalia'. "
-            "Use: 'sua mãe', 'Dona Maria', 'círculo de cuidado'. "
+            f"Use: 'sua mãe', '{elder_name}', 'círculo de cuidado'. "
             "Escreva no máximo 4 frases curtas. Termine sugerindo uma ação humana simples e gentil, se fizer sentido."
         )
         prompt = (
-            f"Aqui está o que aconteceu esta semana com a Dona Maria:\n\n"
+            f"Aqui está o que aconteceu esta semana com a {elder_name}:\n\n"
             f"Registros de saúde:\n{context}\n\n"
             f"Medicação:\n{med_ctx}\n\n"
             f"Escreva um resumo acolhedor da semana, começando com 'Esta semana...'"
@@ -684,12 +698,19 @@ async def weekly_summary(authorization: Optional[str] = Header(None)):
         text = response.text.strip()
     except Exception as e:
         logging.warning(f"AI summary fallback: {e}")
-        text = (
-            "Esta semana a Dona Maria seguiu bem a rotina — comeu, dormiu e conversou. "
-            "A pressão apareceu um pouco acima em dois dias, nada urgente. "
-            "Vale levar esse histórico na consulta de quinta com o Dr. Ricardo. "
-            "Você está fazendo um trabalho lindo."
-        )
+        if user.get("email") in SEEDED_ACCOUNTS:
+            text = (
+                "Esta semana a Dona Maria seguiu bem a rotina — comeu, dormiu e conversou. "
+                "A pressão apareceu um pouco acima em dois dias, nada urgente. "
+                "Vale levar esse histórico na consulta de quinta com o Dr. Ricardo. "
+                "Você está fazendo um trabalho lindo."
+            )
+        else:
+            text = (
+                f"Esta semana, a {elder_name} seguiu a rotina de cuidados. "
+                "Acompanhe o registro diário de atividades e medicamentos para mais detalhes. "
+                "Você está fazendo um trabalho lindo."
+            )
     return {"summary": text}
 
 # ---------- Clinical (dados clínicos do idoso) ----------
@@ -1158,14 +1179,24 @@ async def get_location_settings(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     s = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
     if not s:
-        s = {
-            "home_address": "Rua das Acácias, 210 — Bairro Jardim",
-            "home_lat": -23.5610,
-            "home_lng": -46.6560,
-            "radius_m": 150,
-            "quiet_start": "22:00",
-            "quiet_end": "06:00",
-        }
+        if user.get("email") in SEEDED_ACCOUNTS:
+            s = {
+                "home_address": "Rua das Acácias, 210 — Bairro Jardim",
+                "home_lat": -23.5610,
+                "home_lng": -46.6560,
+                "radius_m": 150,
+                "quiet_start": "22:00",
+                "quiet_end": "06:00",
+            }
+        else:
+            s = {
+                "home_address": None,
+                "home_lat": None,
+                "home_lng": None,
+                "radius_m": 150,
+                "quiet_start": "22:00",
+                "quiet_end": "06:00",
+            }
         await db.location_settings.insert_one({"owner_id": user["user_id"], **s})
     return s
 
@@ -1230,10 +1261,12 @@ async def location_ping(body: LocationPing, authorization: Optional[str] = Heade
         radius = settings.get("radius_m", 150)
         if dist > radius:
             try:
+                elder = await db.elders.find_one({"owner_id": user["user_id"]})
+                elder_display = get_elder_display_name(elder)
                 await send_push(
                     recipients=[user["user_id"]],
                     data={
-                        "title": "Dona Maria saiu de casa",
+                        "title": f"{elder_display} saiu de casa",
                         "message": f"Está a {int(dist)}m — acompanhamento iniciado.",
                         "action_url": "/(tabs)/hoje",
                     },
@@ -1297,11 +1330,13 @@ async def remind_medication(med_id: str, authorization: Optional[str] = Header(N
     if not med:
         raise HTTPException(404, "Not found")
     try:
+        elder = await db.elders.find_one({"owner_id": user["user_id"]})
+        elder_display = get_elder_display_name(elder)
         await send_push(
             recipients=[user["user_id"]],
             data={
                 "title": f"Hora do {med['name']}",
-                "message": f"{med['dosage']} — dá uma passadinha na mamãe 💛",
+                "message": f"{med['dosage']} — dá uma passadinha na {elder_display} 💛",
                 "action_url": "/(tabs)/hoje",
             },
             idempotency_key=f"med_{med_id}_{now_utc().date().isoformat()}",
@@ -1329,11 +1364,12 @@ async def sos(authorization: Optional[str] = Header(None)):
     member_names = [m.get("name") for m in members if m.get("name")]
     # notify circle
     try:
+        elder_display = get_elder_display_name(elder)
         await send_push(
             recipients=[user["user_id"]],
             data={
                 "title": "SOS acionado",
-                "message": f"Modo busca em {elder.get('name') if elder else 'Dona Maria'} — todos avisados.",
+                "message": f"Modo busca em {elder_display} — todos avisados.",
                 "action_url": "/sos",
             },
             idempotency_key=f"sos_{user['user_id']}_{now_utc().isoformat()}",
