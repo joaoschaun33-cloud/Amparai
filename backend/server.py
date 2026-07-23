@@ -664,7 +664,7 @@ async def weekly_summary(authorization: Optional[str] = Header(None)):
     med_ctx = "\n".join([f"- {m['name']} {m['dosage']} às {m['time']} — {'tomado' if m['taken'] else 'ainda não tomado'}" for m in meds])
 
     elder = await db.elders.find_one({"owner_id": uid})
-    elder_name = elder.get("name") if (elder and elder.get("name")) else "Dona Maria"
+    elder_name = elder.get("name") if (elder and elder.get("name")) else "a pessoa de quem você cuida"
 
     try:
         from google import genai
