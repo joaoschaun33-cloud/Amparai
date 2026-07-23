@@ -519,12 +519,31 @@ async def require_user(authorization: Optional[str]) -> dict:
         existing_elder = await db.elders.find_one({"owner_id": uid})
         if not existing_elder:
             await seed_family_for_user(uid)
+        # Garante consentimento para a conta de teste/demo — inclusive contas já criadas
+        # em execuções anteriores — para a suíte exercitar as rotas clínicas com o
+        # enforcement ligado.
+        if not await db.consents.find_one({"owner_id": uid}):
+            await db.consents.insert_one({
+                "consent_id": f"consent_{uuid.uuid4().hex[:10]}",
+                "owner_id": uid,
+                "term_version": CONSENT_TERM_VERSION,
+                "action": "accept",
+                "method": "cuidador_de_fato",
+                "declarations": ["seed"],
+                "ip": "seed",
+                "user_agent": "seed",
+                "created_at": now_utc(),
+            })
 
     return user_dict
 
 # Contas que recebem dados de exemplo. Qualquer outro usuário entra com o app vazio
 # e passa pelo onboarding real.
 SEEDED_ACCOUNTS = {"test@amparai.com.br", "demo@amparai.com.br"}
+
+# Versão vigente do termo de consentimento. Se o texto mudar, incremente aqui — o log
+# guarda a versão exata aceita e o usuário é convidado a consentir de novo.
+CONSENT_TERM_VERSION = "1.0-draft"
 
 async def seed_family_for_user(user_id: str):
     existing = await db.elders.find_one({"owner_id": user_id})
@@ -713,6 +732,110 @@ async def weekly_summary(authorization: Optional[str] = Header(None)):
             )
     return {"summary": text}
 
+# ---------- Consentimento (base legal para dados sensíveis) ----------
+# RASCUNHO — o texto final deve ser revisado pelo advogado antes de ir a produção
+# (transferência internacional / salvaguardas de IA a serem amarradas por ele).
+CONSENT_TERM_TEXT = (
+    "No Amparai, o cuidado da sua mãe é organizado com carinho e responsabilidade. "
+    "Antes de guardar qualquer informação de saúde dela, queremos ser transparentes:\n\n"
+    "• O que guardamos: os dados de saúde e a rotina de cuidado da pessoa de quem você cuida.\n"
+    "• Para quê: apenas para ajudar a sua família a organizar o cuidado. Nunca vendemos "
+    "seus dados nem os usamos para publicidade.\n"
+    "• Quem vê: só quem a sua família convidar para o círculo de cuidado.\n"
+    "• Onde fica: em servidores no Brasil, com criptografia.\n"
+    "• Em uma emergência: dados essenciais podem ser usados para proteger a vida da "
+    "pessoa cuidada.\n"
+    "• Seus direitos: você pode ver, corrigir, exportar e apagar esses dados, e retirar "
+    "este consentimento a qualquer momento, com um toque.\n"
+)
+
+VALID_CONSENT_METHODS = {"titular", "curatela", "cuidador_de_fato"}
+
+
+async def get_consent_status(uid: str) -> dict:
+    """Estado atual do consentimento: o evento mais recente manda. Só vale se for um
+    'accept' na versão vigente do termo."""
+    rows = await db.consents.find(
+        {"owner_id": uid}, {"_id": 0, "owner_id": 0}
+    ).sort("created_at", -1).limit(1).to_list(1)
+    if rows:
+        last = rows[0]
+        if last.get("action") == "accept" and last.get("term_version") == CONSENT_TERM_VERSION:
+            at = last.get("created_at")
+            return {
+                "consented": True,
+                "method": last.get("method"),
+                "term_version": last.get("term_version"),
+                "at": at.isoformat() if isinstance(at, datetime) else at,
+            }
+    return {"consented": False, "method": None, "term_version": CONSENT_TERM_VERSION, "at": None}
+
+
+class ConsentIn(BaseModel):
+    method: str  # "titular" | "curatela" | "cuidador_de_fato"
+    declarations: List[str] = []  # textos aceitos (caminho cuidador de fato)
+
+
+def _client_ip(request: Request) -> str:
+    # No Cloud Run o IP real do cliente vem no X-Forwarded-For (primeiro da lista).
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+@api_router.get("/consent/term")
+async def consent_term(authorization: Optional[str] = Header(None)):
+    await require_user(authorization)
+    return {"version": CONSENT_TERM_VERSION, "text": CONSENT_TERM_TEXT}
+
+
+@api_router.get("/consent/status")
+async def consent_status(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    return await get_consent_status(user["user_id"])
+
+
+@api_router.post("/consent", status_code=201)
+async def give_consent(data: ConsentIn, request: Request, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    if data.method not in VALID_CONSENT_METHODS:
+        raise HTTPException(status_code=400, detail="Método de consentimento inválido.")
+    if data.method == "cuidador_de_fato" and not data.declarations:
+        raise HTTPException(status_code=400, detail="As declarações são obrigatórias neste caminho.")
+    elder = await db.elders.find_one({"owner_id": user["user_id"]}, {"_id": 0})
+    await db.consents.insert_one({
+        "consent_id": f"consent_{uuid.uuid4().hex[:10]}",
+        "owner_id": user["user_id"],
+        "elder_id": elder.get("id") if elder else None,
+        "term_version": CONSENT_TERM_VERSION,
+        "action": "accept",
+        "method": data.method,
+        "declarations": data.declarations,
+        "ip": _client_ip(request),
+        "user_agent": request.headers.get("user-agent", ""),
+        "created_at": now_utc(),
+    })
+    return await get_consent_status(user["user_id"])
+
+
+@api_router.post("/consent/revoke")
+async def revoke_consent(request: Request, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    await db.consents.insert_one({
+        "consent_id": f"consent_{uuid.uuid4().hex[:10]}",
+        "owner_id": user["user_id"],
+        "term_version": CONSENT_TERM_VERSION,
+        "action": "revoke",
+        "method": None,
+        "declarations": [],
+        "ip": _client_ip(request),
+        "user_agent": request.headers.get("user-agent", ""),
+        "created_at": now_utc(),
+    })
+    return await get_consent_status(user["user_id"])
+
+
 # ---------- Clinical (dados clínicos do idoso) ----------
 class ClinicalData(BaseModel):
     blood_type: Optional[str] = None
@@ -774,6 +897,13 @@ async def get_clinico(authorization: Optional[str] = Header(None)):
 @api_router.put("/clinico")
 async def update_clinico(data: ClinicalData, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    # Porta legal: nenhum dado de saúde é gravado sem consentimento válido e vigente.
+    status = await get_consent_status(user["user_id"])
+    if not status["consented"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Consentimento necessário antes de registrar dados de saúde.",
+        )
     payload = data.model_dump()
     await db.clinical.update_one(
         {"owner_id": user["user_id"]},
@@ -817,8 +947,9 @@ async def onboarding_status(authorization: Optional[str] = Header(None)):
     elder = await db.elders.find_one({"owner_id": uid}, {"_id": 0})
     clinical = await db.clinical.find_one({"owner_id": uid}, {"_id": 0})
     members = await db.members.count_documents({"owner_id": uid})
+    consent = await get_consent_status(uid)
     steps = {
-        "consent": bool(elder and elder.get("consent_given")),
+        "consent": consent["consented"],
         "clinical": bool(clinical),
         "circle": members > 0,
     }

@@ -6,7 +6,13 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 
 ## 🛑 Blockers de Release (Críticos)
 
-*Nenhum blocker ativo.*
+### 📜 Revisão jurídica do termo de consentimento — [JURÍDICO] 🔴
+* O texto do termo (`CONSENT_TERM_TEXT`, versão `1.0-draft`) é rascunho e **não pode ir a
+  produção sem revisão do advogado** — falta amarrar transferência internacional (Gemini
+  fora do país) e salvaguardas de IA. Ver rascunho na seção 8 de
+  `ESPECIFICACAO_FASE9_CONSENTIMENTO.md`.
+* **Ação**: advogado revisa → atualizar o texto → bumpar a versão para `1.0` (força
+  reconsentimento) → só então deploy em produção real.
 
 ---
 
@@ -70,16 +76,21 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 > Inventário completo de dados e matriz de acesso em `LGPD_INVENTARIO_DADOS.md`.
 > Itens marcados **[JURÍDICO]** estão bloqueados aguardando parecer do advogado.
 
-### L1. Consentimento não existe de fato — [JURÍDICO] 🔴
-* **Problema**: não há tela de consentimento. O item "Registrar o consentimento" em
-  `hoje.tsx:144` apenas navega para a tela clínica (mesmo destino do passo seguinte).
-  O campo `consent_given` existe no backend, mas nada o coleta. Hoje o consentimento é
-  **teatro de checklist** — inaceitável para dado sensível de titular hipervulnerável.
-* **Desenho aprovado pelo advogado**: dois caminhos ("titular pode consentir" / "não pode"),
-  com curatela quando houver e, na ausência, **declaração de cuidador de fato** (checkbox duplo).
-* **Log obrigatório (ônus da prova, art. 8º §2º)**: `timestamp`, `IP`, `user_id`,
-  **versão exata do termo aceito** e ação realizada. Revogação tão fácil quanto o consentimento.
-* **Bloqueado por**: confirmação das perguntas 1, 2 e 3 enviadas ao advogado.
+### L1. Consentimento de fato — ✅ FASE 9a IMPLEMENTADA (código, aguarda deploy + termo jurídico)
+* **Feito (9a)**: coleção `consents` (log imutável: accept/revoke, timestamp, IP, user_agent,
+  versão do termo, método, declarações); endpoints `GET /consent/term`, `GET /consent/status`,
+  `POST /consent`, `POST /consent/revoke`; **enforcement** `PUT /clinico` → 403 sem
+  consentimento válido; termo mora no servidor (`CONSENT_TERM_VERSION`); tela
+  `app/consentimento.tsx` (termo → capacidade → titular / cuidador de fato).
+* **Pendente para produção real**: revisão jurídica do termo (ver Blocker no topo) e o
+  reteste no device (build preview).
+* **9a — polimento pendente**: a tela clínica ainda não trata o 403 com elegância (o
+  checklist guia ao consentimento primeiro, então o caminho normal funciona).
+
+### L1b. Consentimento — Fase 9b (exige Firebase Storage) 🟡
+* Upload do **Termo de Curatela**; **reforço por selfie/áudio** do consentimento do titular
+  (mitiga o não-repúdio do "toque no app"). Bucket em `southamerica-east1`, não indexado,
+  nunca exibido no app, retenção de 5 anos, download só por admin (parecer do advogado).
 
 ### L2. Coleta de dados de terceiros na pulseira — [JURÍDICO] 🔴
 * **Problema**: `POST /api/pulseira/{id}/scan` grava **nome, telefone, observação e

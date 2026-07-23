@@ -156,9 +156,14 @@ export default function HojeScreen() {
                 <Text style={styles.progressText}>{Math.round((onboarding.completed / onboarding.total) * 100)}%</Text>
               </View>
             </View>
-            {/* O passo de consentimento sai daqui até existir de verdade (Fase 9).
-                Um item que diz "registrar consentimento" e leva para outra tela é
-                teatro de checklist — e consentimento de dado sensível não se finge. */}
+            {/* Consentimento agora existe de verdade (Fase 9a): leva à tela real de termo
+                + base legal, e o "done" reflete o registro de consentimento no backend. */}
+            <ChecklistItem
+              done={onboarding.steps.consent}
+              label="Autorizar o uso dos dados de saúde"
+              onPress={() => router.push("/consentimento")}
+              testID="step-consent"
+            />
             <ChecklistItem
               done={onboarding.steps.clinical}
               label="Preencher os dados clínicos"
