@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,16 +25,21 @@ import { useAuth } from "@/src/context/AuthContext";
  * O texto do termo vem do backend (versão controlada pelo servidor).
  */
 
-const DECL_1 =
-  "Declaro ser o responsável de fato pela pessoa de quem cuido e autorizo o uso do Amparai para a organização do seu cuidado.";
+// Textos com força legal — redação exata aprovada pelo advogado. Não alterar sem revisão.
+const declOne = (nome: string) =>
+  `Declaro ser o responsável de fato por ${nome} e autorizo o uso do Amparai para a organização de seu cuidado.`;
 const DECL_2 =
   "Assumo integral responsabilidade legal por esta declaração perante o aplicativo e terceiros, isentando o Amparai de quaisquer litígios familiares decorrentes do uso e compartilhamento destes dados na plataforma.";
+
+const POLICY_URL = "https://amparai.com.br/privacidade.html";
+const TERMS_URL = "https://amparai.com.br/termos.html";
 
 export default function Consentimento() {
   const router = useRouter();
   const { authFetch, refreshOnboarding } = useAuth();
 
   const [term, setTerm] = useState<string>("");
+  const [elderName, setElderName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,11 +52,12 @@ export default function Consentimento() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await authFetch("/api/consent/term");
-        if (r.ok) {
-          const d = await r.json();
-          setTerm(d.text || "");
-        }
+        const [rt, re] = await Promise.all([
+          authFetch("/api/consent/term"),
+          authFetch("/api/elder"),
+        ]);
+        if (rt.ok) setTerm((await rt.json()).text || "");
+        if (re.ok) setElderName(((await re.json()).name || "").trim());
       } catch {}
       setLoading(false);
     })();
@@ -60,9 +67,10 @@ export default function Consentimento() {
     setSaving(true);
     setError(null);
     try {
+      const nome = elderName || "a pessoa de quem cuido";
       const body =
         method === "cuidador_de_fato"
-          ? { method, declarations: [DECL_1, DECL_2] }
+          ? { method, declarations: [declOne(nome), DECL_2] }
           : { method, declarations: [] };
       const r = await authFetch("/api/consent", {
         method: "POST",
@@ -108,6 +116,14 @@ export default function Consentimento() {
               <Text style={styles.privacyText}>
                 Você pode retirar este consentimento a qualquer momento, com um toque.
               </Text>
+            </View>
+            <View style={styles.docLinks}>
+              <Pressable onPress={() => Linking.openURL(POLICY_URL)} testID="consent-policy">
+                <Text style={styles.linkText}>Ler a Política de Privacidade</Text>
+              </Pressable>
+              <Pressable onPress={() => Linking.openURL(TERMS_URL)} testID="consent-terms">
+                <Text style={styles.linkText}>Ler os Termos de Uso</Text>
+              </Pressable>
             </View>
             <Pressable
               style={styles.primaryBtn}
@@ -184,7 +200,7 @@ export default function Consentimento() {
                 size={24}
                 color={check1 ? colors.olive : colors.onSurfaceSoft}
               />
-              <Text style={styles.checkText}>{DECL_1}</Text>
+              <Text style={styles.checkText}>{declOne(elderName || "a pessoa de quem cuido")}</Text>
             </Pressable>
 
             <Pressable
@@ -314,4 +330,13 @@ const styles = StyleSheet.create({
   backText: { fontFamily: type.sans, fontSize: 15, color: colors.onSurfaceSoft },
 
   error: { fontFamily: type.sans, fontSize: 14, color: colors.clayRed },
+
+  docLinks: { gap: spacing.sm },
+  linkText: {
+    fontFamily: type.sans,
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.brand,
+    textDecorationLine: "underline",
+  },
 });

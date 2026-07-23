@@ -746,7 +746,8 @@ CONSENT_TERM_TEXT = (
     "• Em uma emergência: dados essenciais podem ser usados para proteger a vida da "
     "pessoa cuidada.\n"
     "• Seus direitos: você pode ver, corrigir, exportar e apagar esses dados, e retirar "
-    "este consentimento a qualquer momento, com um toque.\n"
+    "este consentimento a qualquer momento, com um toque.\n\n"
+    "Leia os detalhes completos na nossa Política de Privacidade e nos Termos de Uso."
 )
 
 VALID_CONSENT_METHODS = {"titular", "curatela", "cuidador_de_fato"}
@@ -918,6 +919,12 @@ class ElderUpdate(BaseModel):
     age: Optional[int] = None
     photo_url: Optional[str] = None
     consent_given: Optional[bool] = None
+
+@api_router.get("/elder")
+async def get_elder(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    elder = await db.elders.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
+    return elder or {}
 
 @api_router.put("/elder")
 async def update_elder(data: ElderUpdate, authorization: Optional[str] = Header(None)):
