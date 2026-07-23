@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "amparai-ce7f4"
-  }
+  },
+  "targets": {
+    "amparai-ce7f4": {
+      "hosting": {
+        "landing": [
+          "amparai-ce7f4"
+        ],
+        "app": [
+          "amparai-app"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
