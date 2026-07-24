@@ -61,7 +61,9 @@ export default function CirculoScreen() {
 
   const shareInvite = async () => {
     if (!invite) return;
-    const link = `${BACKEND}/convite/${invite.code}`;
+    // O link abre o APP (rota /convite/[code]), nunca o backend.
+    const APP_URL = process.env.EXPO_PUBLIC_APP_URL || "https://app.amparai.com.br";
+    const link = `${APP_URL}/convite/${invite.code}`;
     const msg = `Oi ${invite.name}! ${user?.name?.split(" ")[0] || ""} te convidou pro círculo de cuidado da mamãe no Amparai 💛\n\nCódigo: ${invite.code}\n${link}`;
     try {
       await Share.share({ message: msg });

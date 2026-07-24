@@ -636,7 +636,7 @@ async def get_hoje(authorization: Optional[str] = Header(None)):
 async def toggle_medication(med_id: str, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     hh = await resolve_household(user)
-    require_coordinator(hh)
+    # Operacional: qualquer membro do círculo pode marcar que o remédio foi tomado.
     med = await db.medications.find_one({"id": med_id, "owner_id": hh["owner_id"]}, {"_id": 0})
     if not med:
         raise HTTPException(status_code=404, detail="Not found")
@@ -669,8 +669,10 @@ async def get_saude(authorization: Optional[str] = Header(None)):
 async def get_custos(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     hh = await resolve_household(user)
-    # Financeiro é fechado por padrão para o Familiar (minimização / LGPD).
-    if hh["role"] != "coordenador" and not hh["can_see_financeiro"]:
+    # Financeiro é VISÍVEL a todos do círculo: a transparência do rateio é o que gera a
+    # cobrança social e desonera o Coordenador de ser o "cobrador". (A trava por permissão
+    # vale só para os papéis da v2 — Cuidador/Profissional.)
+    if hh["role"] in ("cuidador", "profissional") and not hh["can_see_financeiro"]:
         raise HTTPException(status_code=403, detail="Sem acesso ao financeiro deste círculo.")
     expenses = await db.expenses.find({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
     total = sum(e["amount"] for e in expenses)
@@ -1136,7 +1138,7 @@ class NudgeIn(BaseModel):
 @api_router.post("/whatsapp/nudge")
 async def whatsapp_nudge(data: NudgeIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    require_coordinator(await resolve_household(user))
+    # Qualquer membro pode mandar o lembrete gentil (a cobrança é do círculo, não do Coordenador).
     msg = (
         f"Oi {data.to_name}! 💛\n\nQuando puder, dá uma passadinha na sua parte do custo do mês da mamãe: "
         f"*{data.expense_title}* — R$ {data.amount:.2f}. "
@@ -1154,8 +1156,7 @@ class OcrIn(BaseModel):
 
 @api_router.post("/ocr/receipt")
 async def ocr_receipt(payload: OcrIn, authorization: Optional[str] = Header(None)):
-    user = await require_user(authorization)
-    require_coordinator(await resolve_household(user))
+    user = await require_user(authorization)  # qualquer membro pode ler um recibo para lançar despesa
     img = payload.image_base64
     if img.startswith("data:"):
         img = img.split(",", 1)[1]
@@ -1206,7 +1207,7 @@ class ExpenseIn(BaseModel):
 async def add_expense(data: ExpenseIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     hh = await resolve_household(user)
-    require_coordinator(hh)
+    # Operacional: quem pagou registra a despesa (o rateio depois é visível a todos).
     exp_id = f"exp_{uuid.uuid4().hex[:8]}"
     doc = {"owner_id": hh["owner_id"], "id": exp_id, **data.model_dump()}
     await db.expenses.insert_one(doc)

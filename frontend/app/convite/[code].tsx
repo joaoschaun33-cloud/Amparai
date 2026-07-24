@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,9 +11,12 @@ const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL;
 export default function ConvitePublic() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, authFetch, loginWithGoogle, refreshOnboarding } = useAuth();
   const [info, setInfo] = useState<{ invitation: { name: string; role: string; owner_name?: string; accepted: boolean }; elder_name: string } | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingAccept, setPendingAccept] = useState(false);
 
   useEffect(() => {
     if (!code) return;
@@ -25,6 +28,34 @@ export default function ConvitePublic() {
       } catch { setNotFound(true); }
     })();
   }, [code]);
+
+  const doAccept = useCallback(async () => {
+    setAccepting(true);
+    setError(null);
+    try {
+      const r = await authFetch(`/api/invitations/${code}/accept`, { method: "POST" });
+      if (r.status === 201 || r.ok) {
+        await refreshOnboarding?.();
+        router.replace("/(tabs)/hoje");
+        return;
+      }
+      const d = await r.json().catch(() => ({}));
+      setError(d.detail || "Não consegui entrar no círculo agora.");
+    } catch {
+      setError("Não consegui entrar no círculo agora.");
+    }
+    setAccepting(false);
+  }, [authFetch, code, refreshOnboarding, router]);
+
+  const onCta = async () => {
+    if (!user) { setPendingAccept(true); await loginWithGoogle(); return; }
+    await doAccept();
+  };
+
+  // Fluxo "Entrar com Google" a partir do convite: depois do login, aceita sozinho.
+  useEffect(() => {
+    if (user && pendingAccept) { setPendingAccept(false); doAccept(); }
+  }, [user, pendingAccept, doAccept]);
 
   if (notFound) {
     return (
@@ -67,12 +98,18 @@ export default function ConvitePublic() {
           <Text style={styles.roleDesc}>{roleDesc(info.invitation.role)}</Text>
         </View>
 
+        {error && <Text style={styles.error}>{error}</Text>}
         <Pressable
           style={styles.cta}
-          onPress={() => router.replace(user ? "/(tabs)/hoje" : "/")}
+          onPress={onCta}
+          disabled={accepting}
           testID="accept-invite"
         >
-          <Text style={styles.ctaText}>{user ? "Entrar no círculo" : "Entrar com Google"}</Text>
+          {accepting ? (
+            <ActivityIndicator color={colors.onBrand} />
+          ) : (
+            <Text style={styles.ctaText}>{user ? "Entrar no círculo" : "Entrar com Google"}</Text>
+          )}
         </Pressable>
 
         <Text style={styles.footer}>Código: <Text style={styles.code}>{code}</Text></Text>
@@ -114,4 +151,5 @@ const styles = StyleSheet.create({
   ctaText: { fontFamily: type.sans, fontSize: 17, color: colors.onBrand, fontWeight: "700" },
   footer: { fontFamily: type.sans, fontSize: 12, color: colors.onSurfaceSoft, textAlign: "center", marginTop: spacing.xl },
   code: { fontFamily: type.serif, letterSpacing: 3, color: colors.brand, fontWeight: "700" },
+  error: { fontFamily: type.sans, fontSize: 14, color: colors.clayRed, marginTop: spacing.md, textAlign: "center" },
 });
