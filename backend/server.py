@@ -616,7 +616,8 @@ async def logout(authorization: Optional[str] = Header(None)):
 @api_router.get("/hoje")
 async def get_hoje(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    uid = user["user_id"]
+    hh = await resolve_household(user)
+    uid = hh["owner_id"]
     elder = await db.elders.find_one({"owner_id": uid}, {"_id": 0, "owner_id": 0})
     meds = await db.medications.find({"owner_id": uid}, {"_id": 0, "owner_id": 0}).to_list(50)
     meds_sorted = sorted(meds, key=lambda m: m["time"])
@@ -634,17 +635,20 @@ async def get_hoje(authorization: Optional[str] = Header(None)):
 @api_router.post("/medications/{med_id}/toggle")
 async def toggle_medication(med_id: str, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    med = await db.medications.find_one({"id": med_id, "owner_id": user["user_id"]}, {"_id": 0})
+    hh = await resolve_household(user)
+    require_coordinator(hh)
+    med = await db.medications.find_one({"id": med_id, "owner_id": hh["owner_id"]}, {"_id": 0})
     if not med:
         raise HTTPException(status_code=404, detail="Not found")
     new_taken = not med.get("taken", False)
-    await db.medications.update_one({"id": med_id, "owner_id": user["user_id"]}, {"$set": {"taken": new_taken}})
+    await db.medications.update_one({"id": med_id, "owner_id": hh["owner_id"]}, {"$set": {"taken": new_taken}})
     return {"id": med_id, "taken": new_taken}
 
 @api_router.get("/escala")
 async def get_escala(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    shifts = await db.shifts.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
+    hh = await resolve_household(user)
+    shifts = await db.shifts.find({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
     # month summary of contribution
     contribution = {}
     for s in shifts:
@@ -656,14 +660,19 @@ async def get_escala(authorization: Optional[str] = Header(None)):
 @api_router.get("/saude")
 async def get_saude(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    events = await db.health_events.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
-    meds = await db.medications.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).to_list(50)
+    hh = await resolve_household(user)
+    events = await db.health_events.find({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
+    meds = await db.medications.find({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0}).to_list(50)
     return {"events": events, "medications": meds}
 
 @api_router.get("/custos")
 async def get_custos(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    expenses = await db.expenses.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
+    hh = await resolve_household(user)
+    # Financeiro é fechado por padrão para o Familiar (minimização / LGPD).
+    if hh["role"] != "coordenador" and not hh["can_see_financeiro"]:
+        raise HTTPException(status_code=403, detail="Sem acesso ao financeiro deste círculo.")
+    expenses = await db.expenses.find({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
     total = sum(e["amount"] for e in expenses)
     pendentes = 0
     for e in expenses:
@@ -675,7 +684,8 @@ async def get_custos(authorization: Optional[str] = Header(None)):
 @api_router.get("/summary/weekly")
 async def weekly_summary(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    uid = user["user_id"]
+    hh = await resolve_household(user)
+    uid = hh["owner_id"]
     events = await db.health_events.find({"owner_id": uid}, {"_id": 0, "owner_id": 0}).to_list(20)
     meds = await db.medications.find({"owner_id": uid}, {"_id": 0, "owner_id": 0}).to_list(20)
 
@@ -853,7 +863,8 @@ class ClinicalData(BaseModel):
 @api_router.get("/clinico")
 async def get_clinico(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    doc = await db.clinical.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
+    hh = await resolve_household(user)
+    doc = await db.clinical.find_one({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0})
     if not doc:
         if user.get("email") in SEEDED_ACCOUNTS:
             # Conta de teste/demo: prontuário de exemplo (persistido para a suíte e a demo).
@@ -893,13 +904,18 @@ async def get_clinico(authorization: Optional[str] = Header(None)):
                 "mobility": None,
                 "cognitive": None,
             }
+    # Notas livres: fechadas para Familiar sem permissão (minimização / LGPD).
+    if hh["role"] != "coordenador" and not hh["can_see_notas"] and isinstance(doc, dict):
+        doc = {**doc, "notes": None}
     return doc
 
 @api_router.put("/clinico")
 async def update_clinico(data: ClinicalData, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    hh = await resolve_household(user)
+    require_coordinator(hh)
     # Porta legal: nenhum dado de saúde é gravado sem consentimento válido e vigente.
-    status = await get_consent_status(user["user_id"])
+    status = await get_consent_status(hh["owner_id"])
     if not status["consented"]:
         raise HTTPException(
             status_code=403,
@@ -907,7 +923,7 @@ async def update_clinico(data: ClinicalData, authorization: Optional[str] = Head
         )
     payload = data.model_dump()
     await db.clinical.update_one(
-        {"owner_id": user["user_id"]},
+        {"owner_id": hh["owner_id"]},
         {"$set": payload},
         upsert=True,
     )
@@ -923,16 +939,19 @@ class ElderUpdate(BaseModel):
 @api_router.get("/elder")
 async def get_elder(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    elder = await db.elders.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
+    hh = await resolve_household(user)
+    elder = await db.elders.find_one({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0})
     return elder or {}
 
 @api_router.put("/elder")
 async def update_elder(data: ElderUpdate, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    hh = await resolve_household(user)
+    require_coordinator(hh)
     payload = {k: v for k, v in data.model_dump().items() if v is not None}
     if not payload:
         raise HTTPException(status_code=400, detail="Empty payload")
-    uid = user["user_id"]
+    uid = hh["owner_id"]
     existing = await db.elders.find_one({"owner_id": uid})
     if not existing:
         # Primeiro cadastro (onboarding): garante identificador próprio e vínculo com o
@@ -950,7 +969,8 @@ async def update_elder(data: ElderUpdate, authorization: Optional[str] = Header(
 @api_router.get("/onboarding/status")
 async def onboarding_status(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    uid = user["user_id"]
+    hh = await resolve_household(user)
+    uid = hh["owner_id"]
     elder = await db.elders.find_one({"owner_id": uid}, {"_id": 0})
     clinical = await db.clinical.find_one({"owner_id": uid}, {"_id": 0})
     members = await db.members.count_documents({"owner_id": uid})
@@ -979,19 +999,42 @@ class MemberIn(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
 
+# ---------- Círculo de cuidado: household + RBAC (Fase 10 v1) ----------
+async def resolve_household(user: dict) -> dict:
+    """A qual família o usuário pertence e com qual papel/permissões.
+    Sem associação = Coordenador da própria família (owner_id = a própria uid)."""
+    uid = user["user_id"]
+    m = await db.memberships.find_one({"member_uid": uid}, {"_id": 0})
+    if m:
+        return {
+            "owner_id": m["household_owner_id"],
+            "role": m.get("role", "familiar"),
+            "can_see_financeiro": bool(m.get("can_see_financeiro")),
+            "can_see_notas": bool(m.get("can_see_notas")),
+        }
+    return {"owner_id": uid, "role": "coordenador", "can_see_financeiro": True, "can_see_notas": True}
+
+def require_coordinator(hh: dict):
+    # v1: só o Coordenador escreve. Familiar é leitura.
+    if hh["role"] != "coordenador":
+        raise HTTPException(status_code=403, detail="Apenas o coordenador do cuidado pode fazer isso.")
+
 @api_router.get("/members")
 async def list_members(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    docs = await db.members.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
+    hh = await resolve_household(user)
+    docs = await db.members.find({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
     return {"members": docs}
 
 @api_router.post("/members")
 async def add_member(data: MemberIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    hh = await resolve_household(user)
+    require_coordinator(hh)
     mid = f"mem_{uuid.uuid4().hex[:10]}"
     avatar = (data.name.strip()[:1] or "?").upper()
     doc = {
-        "owner_id": user["user_id"],
+        "owner_id": hh["owner_id"],
         "id": mid,
         "name": data.name,
         "role": data.role,
@@ -1009,29 +1052,70 @@ async def add_member(data: MemberIn, authorization: Optional[str] = Header(None)
 @api_router.delete("/members/{member_id}")
 async def del_member(member_id: str, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    await db.members.delete_one({"owner_id": user["user_id"], "id": member_id})
+    hh = await resolve_household(user)
+    require_coordinator(hh)
+    await db.members.delete_one({"owner_id": hh["owner_id"], "id": member_id})
     return {"ok": True}
 
 class InviteIn(BaseModel):
     name: str
     role: str
+    can_see_financeiro: bool = False  # padrão fechado (LGPD/minimização)
+    can_see_notas: bool = False
 
 @api_router.post("/invitations")
 async def create_invitation(data: InviteIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    hh = await resolve_household(user)
+    require_coordinator(hh)
     code = uuid.uuid4().hex[:8].upper()
     inv = {
-        "owner_id": user["user_id"],
+        "owner_id": hh["owner_id"],
         "owner_name": user["name"],
         "code": code,
         "name": data.name,
         "role": data.role,
+        "can_see_financeiro": data.can_see_financeiro,
+        "can_see_notas": data.can_see_notas,
         "accepted": False,
         "created_at": now_utc(),
         "expires_at": now_utc() + timedelta(days=7),
     }
     await db.invitations.insert_one(inv)
     return {"code": code, "name": data.name, "role": data.role, "invite_url": f"/convite/{code}"}
+
+@api_router.post("/invitations/{code}/accept")
+async def accept_invitation(code: str, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    uid = user["user_id"]
+    inv = await db.invitations.find_one({"code": code}, {"_id": 0})
+    if not inv:
+        raise HTTPException(status_code=404, detail="Convite não encontrado.")
+    if inv.get("accepted"):
+        raise HTTPException(status_code=409, detail="Este convite já foi aceito.")
+    if inv["owner_id"] == uid:
+        raise HTTPException(status_code=400, detail="Você não pode aceitar o próprio convite.")
+    # Uma família por usuário na v1: não pode já pertencer a outra nem ter a própria.
+    if await db.memberships.find_one({"member_uid": uid}):
+        raise HTTPException(status_code=409, detail="Você já faz parte de um círculo de cuidado.")
+    if await db.elders.find_one({"owner_id": uid}):
+        raise HTTPException(status_code=409, detail="Você já tem a sua própria família no Amparai.")
+    await db.memberships.insert_one({
+        "membership_id": f"mship_{uuid.uuid4().hex[:10]}",
+        "household_owner_id": inv["owner_id"],
+        "member_uid": uid,
+        "member_name": user.get("name"),
+        "role": "familiar",  # v1 só liga acesso para Familiar
+        "can_see_financeiro": bool(inv.get("can_see_financeiro")),
+        "can_see_notas": bool(inv.get("can_see_notas")),
+        "invited_by": inv["owner_id"],
+        "created_at": now_utc(),
+    })
+    await db.invitations.update_one(
+        {"code": code},
+        {"$set": {"accepted": True, "accepted_by": uid, "accepted_at": now_utc()}},
+    )
+    return {"ok": True, "household_owner_id": inv["owner_id"], "role": "familiar"}
 
 @api_router.get("/invitations/{code}")
 async def get_invitation(code: str):
@@ -1052,6 +1136,7 @@ class NudgeIn(BaseModel):
 @api_router.post("/whatsapp/nudge")
 async def whatsapp_nudge(data: NudgeIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    require_coordinator(await resolve_household(user))
     msg = (
         f"Oi {data.to_name}! 💛\n\nQuando puder, dá uma passadinha na sua parte do custo do mês da mamãe: "
         f"*{data.expense_title}* — R$ {data.amount:.2f}. "
@@ -1070,6 +1155,7 @@ class OcrIn(BaseModel):
 @api_router.post("/ocr/receipt")
 async def ocr_receipt(payload: OcrIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    require_coordinator(await resolve_household(user))
     img = payload.image_base64
     if img.startswith("data:"):
         img = img.split(",", 1)[1]
@@ -1119,8 +1205,10 @@ class ExpenseIn(BaseModel):
 @api_router.post("/expenses")
 async def add_expense(data: ExpenseIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    hh = await resolve_household(user)
+    require_coordinator(hh)
     exp_id = f"exp_{uuid.uuid4().hex[:8]}"
-    doc = {"owner_id": user["user_id"], "id": exp_id, **data.model_dump()}
+    doc = {"owner_id": hh["owner_id"], "id": exp_id, **data.model_dump()}
     await db.expenses.insert_one(doc)
     return {"id": exp_id, **data.model_dump()}
 
