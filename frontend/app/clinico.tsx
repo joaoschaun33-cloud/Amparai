@@ -21,11 +21,13 @@ type Clinico = {
 
 const MOBILITY = ["independente", "assistida", "cadeira", "acamada"];
 const COGNITIVE = ["orientada", "leve", "moderada", "avancada"];
+const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 export default function ClinicoScreen() {
   const { authFetch } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<Clinico | null>(null);
+  const [elderName, setElderName] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editSection, setEditSection] = useState<null | "allergies" | "conditions" | "meds" | "contacts" | "notes" | "surgeries" | "plan">(null);
@@ -35,8 +37,9 @@ export default function ClinicoScreen() {
 
   const load = useCallback(async () => {
     try {
-      const r = await authFetch("/api/clinico");
-      if (r.ok) setData(await r.json());
+      const [rc, re] = await Promise.all([authFetch("/api/clinico"), authFetch("/api/elder")]);
+      if (rc.ok) setData(await rc.json());
+      if (re.ok) setElderName(((await re.json()).name || "").trim());
     } catch {}
     setLoading(false);
   }, [authFetch]);
@@ -53,6 +56,8 @@ export default function ClinicoScreen() {
 
   const setMobility = (v: string) => data && save({ ...data, mobility: v });
   const setCognitive = (v: string) => data && save({ ...data, cognitive: v });
+  // Toque no já selecionado limpa (permite corrigir). Tipo sanguíneo é enum, não texto livre.
+  const setBloodType = (v: string) => data && save({ ...data, blood_type: data.blood_type === v ? undefined : v });
 
   const addSimple = (kind: "allergies" | "conditions") => {
     if (!data || !draftText.trim()) return setEditSection(null);
@@ -127,7 +132,7 @@ export default function ClinicoScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
-        <Text style={styles.title}>Dona Maria</Text>
+        <Text style={styles.title}>{elderName || "Dados de saúde"}</Text>
         <Text style={styles.subtitle}>O que o médico precisa saber, num só lugar.</Text>
 
         <View style={styles.rowCards}>
@@ -140,6 +145,21 @@ export default function ClinicoScreen() {
             <Text style={[styles.miniValue, { color: colors.onOlive, textTransform: "capitalize" }]}>{data.mobility || "—"}</Text>
           </View>
         </View>
+
+        <Section title="Tipo sanguíneo">
+          <View style={styles.pillsRow}>
+            {BLOOD_TYPES.map((b) => (
+              <Pressable
+                key={b}
+                testID={`blood-${b}`}
+                onPress={() => setBloodType(b)}
+                style={[styles.pill, data.blood_type === b && styles.pillActive]}
+              >
+                <Text style={[styles.pillText, data.blood_type === b && styles.pillTextActive]}>{b}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Section>
 
         <Section title="Como está a mobilidade">
           <View style={styles.pillsRow}>
