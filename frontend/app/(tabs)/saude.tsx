@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, type, shadow } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
+import AddCareModal from "@/src/components/AddCareModal";
 
 type Event = { id: string; when: string; kind: string; title: string; detail: string; source: string };
 
@@ -18,6 +19,7 @@ export default function SaudeScreen() {
   const { authFetch, elderName } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -37,8 +39,20 @@ export default function SaudeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]} testID="saude-screen">
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 160 }}>
-        <Text style={styles.title}>Saúde de {elderName || "quem você cuida"}</Text>
-        <Text style={styles.subtitle}>Tudo que a família registrou, em ordem.</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Saúde de {elderName || "quem você cuida"}</Text>
+            <Text style={styles.subtitle}>Tudo que a família registrou, em ordem.</Text>
+          </View>
+          <Pressable
+            style={styles.addBtn}
+            onPress={() => setModalVisible(true)}
+            testID="saude-add-btn"
+          >
+            <Ionicons name="add-circle" size={20} color={colors.onBrand} />
+            <Text style={styles.addBtnText}>Registrar</Text>
+          </Pressable>
+        </View>
 
         <View style={{ marginTop: spacing.xl }}>
           {events.map((e, idx) => (
@@ -68,6 +82,13 @@ export default function SaudeScreen() {
         <Ionicons name="document-text-outline" size={20} color={colors.onBrand} />
         <Text style={styles.pdfText}>Gerar PDF para a consulta</Text>
       </Pressable>
+
+      <AddCareModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSuccess={load}
+        initialCategory="event"
+      />
     </SafeAreaView>
   );
 }
@@ -76,6 +97,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   title: { fontFamily: type.serif, fontSize: 28, color: colors.onSurface, fontWeight: "600" },
   subtitle: { fontFamily: type.sans, fontSize: 15, color: colors.onSurfaceSoft, marginTop: 4 },
+  addBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.brand,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+  },
+  addBtnText: {
+    fontFamily: type.sans,
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.onBrand,
+  },
   row: { flexDirection: "row", gap: spacing.md },
   timelineCol: { alignItems: "center", width: 32 },
   timelineDot: { width: 28, height: 28, borderRadius: radius.pill, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center", marginTop: 6 },

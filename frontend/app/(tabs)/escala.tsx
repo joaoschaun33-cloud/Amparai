@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, type, shadow } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
+import AddCareModal from "@/src/components/AddCareModal";
 
 type Shift = { id: string; day: string; day_label: string; caregiver_name: string; caregiver_avatar: string; role: string; slot: string; covered: boolean };
 
@@ -12,6 +13,7 @@ export default function EscalaScreen() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [contribution, setContribution] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -34,8 +36,20 @@ export default function EscalaScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]} testID="escala-screen">
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}>
-        <Text style={styles.title}>Escala da família</Text>
-        <Text style={styles.subtitle}>Quem está com {elderName || "quem você cuida"}, em que dia.</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Escala da família</Text>
+            <Text style={styles.subtitle}>Quem está com {elderName || "quem você cuida"}, em que dia.</Text>
+          </View>
+          <Pressable
+            style={styles.addBtn}
+            onPress={() => setModalVisible(true)}
+            testID="escala-add-btn"
+          >
+            <Ionicons name="add-circle" size={20} color={colors.onBrand} />
+            <Text style={styles.addBtnText}>Plantão</Text>
+          </Pressable>
+        </View>
 
         <View style={{ marginTop: spacing.xl }}>
           {shifts.map((s) => (
@@ -82,6 +96,13 @@ export default function EscalaScreen() {
           ))}
         </View>
       </ScrollView>
+
+      <AddCareModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSuccess={load}
+        initialCategory="shift"
+      />
     </SafeAreaView>
   );
 }
@@ -90,6 +111,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   title: { fontFamily: type.serif, fontSize: 28, color: colors.onSurface, fontWeight: "600" },
   subtitle: { fontFamily: type.sans, fontSize: 15, color: colors.onSurfaceSoft, marginTop: 4 },
+  addBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.brand,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+  },
+  addBtnText: {
+    fontFamily: type.sans,
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.onBrand,
+  },
   shiftCard: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
     backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,

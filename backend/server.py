@@ -644,6 +644,123 @@ async def toggle_medication(med_id: str, authorization: Optional[str] = Header(N
     await db.medications.update_one({"id": med_id, "owner_id": hh["owner_id"]}, {"$set": {"taken": new_taken}})
     return {"id": med_id, "taken": new_taken}
 
+class MedicationIn(BaseModel):
+    name: str
+    dosage: str
+    time: str
+    period: Optional[str] = "todos os dias"
+
+class HealthEventIn(BaseModel):
+    title: str
+    detail: str
+    kind: Optional[str] = "registro"
+    when: Optional[str] = None
+    is_private: Optional[bool] = False
+
+class AppointmentIn(BaseModel):
+    title: str
+    when: str
+    doctor: Optional[str] = None
+    specialty: Optional[str] = None
+    location: Optional[str] = None
+
+class ShiftIn(BaseModel):
+    day_label: str
+    slot: str
+    caregiver_name: str
+    role: Optional[str] = "Cuidador"
+
+@api_router.post("/medications", status_code=201)
+async def create_medication(data: MedicationIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    hh = await resolve_household(user)
+    med_id = f"med_{uuid.uuid4().hex[:8]}"
+    item = {
+        "id": med_id,
+        "owner_id": hh["owner_id"],
+        "name": data.name.strip(),
+        "dosage": data.dosage.strip(),
+        "time": data.time.strip(),
+        "period": data.period or "todos os dias",
+        "taken": False,
+        "created_at": now_utc(),
+    }
+    await db.medications.insert_one(item)
+    return {
+        "id": med_id,
+        "name": item["name"],
+        "dosage": item["dosage"],
+        "time": item["time"],
+        "period": item["period"],
+        "taken": False,
+    }
+
+@api_router.post("/health_events", status_code=201)
+async def create_health_event(data: HealthEventIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    hh = await resolve_household(user)
+    event_id = f"evt_{uuid.uuid4().hex[:8]}"
+    when_str = data.when.strip() if (data.when and data.when.strip()) else datetime.now(timezone.utc).strftime("%H:%M")
+    item = {
+        "id": event_id,
+        "owner_id": hh["owner_id"],
+        "author_name": user.get("name", "Familiar"),
+        "title": data.title.strip(),
+        "detail": data.detail.strip(),
+        "kind": data.kind or "registro",
+        "when": when_str,
+        "is_private": bool(data.is_private),
+        "created_at": now_utc(),
+    }
+    await db.health_events.insert_one(item)
+    return {
+        "id": event_id,
+        "title": item["title"],
+        "detail": item["detail"],
+        "kind": item["kind"],
+        "when": item["when"],
+        "author_name": item["author_name"],
+    }
+
+@api_router.post("/appointments", status_code=201)
+async def create_appointment(data: AppointmentIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    hh = await resolve_household(user)
+    appt_id = f"appt_{uuid.uuid4().hex[:8]}"
+    item = {
+        "id": appt_id,
+        "owner_id": hh["owner_id"],
+        "title": data.title.strip(),
+        "when": data.when.strip(),
+        "doctor": data.doctor.strip() if data.doctor else None,
+        "specialty": data.specialty.strip() if data.specialty else None,
+        "location": data.location.strip() if data.location else None,
+        "created_at": now_utc(),
+    }
+    await db.appointments.insert_one(item)
+    return item
+
+@api_router.post("/shifts", status_code=201)
+async def create_shift(data: ShiftIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    hh = await resolve_household(user)
+    shift_id = f"shift_{uuid.uuid4().hex[:8]}"
+    avatar = data.caregiver_name.strip()[0].upper() if data.caregiver_name.strip() else "C"
+    item = {
+        "id": shift_id,
+        "owner_id": hh["owner_id"],
+        "day": "hoje",
+        "day_label": data.day_label.strip(),
+        "slot": data.slot.strip(),
+        "caregiver_name": data.caregiver_name.strip(),
+        "caregiver_avatar": avatar,
+        "role": data.role.strip() if data.role else "Cuidador",
+        "covered": True,
+        "created_at": now_utc(),
+    }
+    await db.shifts.insert_one(item)
+    return item
+
 @api_router.get("/escala")
 async def get_escala(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)

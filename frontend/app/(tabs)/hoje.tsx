@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { colors, spacing, radius, type, shadow } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
+import AddCareModal, { CareCategory } from "@/src/components/AddCareModal";
 
 type HojeData = {
   greeting: string;
@@ -23,6 +24,14 @@ export default function HojeScreen() {
   const [summary, setSummary] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [onboarding, setOnboarding] = useState<{ steps: { consent: boolean; clinical: boolean; circle: boolean }; completed: number; total: number } | null>(null);
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalCategory, setModalCategory] = useState<CareCategory>("medication");
+
+  const openAdd = (cat: CareCategory = "medication") => {
+    setModalCategory(cat);
+    setModalVisible(true);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -144,6 +153,16 @@ export default function HojeScreen() {
           </Pressable>
         </View>
 
+        {/* Main Care Registration Action Button */}
+        <Pressable
+          style={styles.mainAddBtn}
+          onPress={() => openAdd("medication")}
+          testID="main-add-care-btn"
+        >
+          <Ionicons name="add-circle" size={22} color={colors.onBrand} />
+          <Text style={styles.mainAddBtnText}>Registrar Cuidado (Remédio, Diário, Consulta, Plantão)</Text>
+        </Pressable>
+
         {/* Onboarding checklist — only when incomplete */}
         {onboarding && onboarding.completed < onboarding.total && (
           <View style={styles.onboardCard} testID="onboarding-checklist">
@@ -182,7 +201,12 @@ export default function HojeScreen() {
         {/* Medications */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Remédios de hoje</Text>
-          <Text style={styles.sectionCount}>{data.medications.taken} de {data.medications.total} ✓</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Text style={styles.sectionCount}>{data.medications.taken} de {data.medications.total} ✓</Text>
+            <Pressable onPress={() => openAdd("medication")} hitSlop={8} testID="add-medication-btn">
+              <Ionicons name="add-circle" size={24} color={colors.brand} />
+            </Pressable>
+          </View>
         </View>
         <View style={styles.card}>
           {data.medications.items.map((m, idx) => (
@@ -211,7 +235,12 @@ export default function HojeScreen() {
         </View>
 
         {/* Shifts */}
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Plantão</Text></View>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Plantão</Text>
+          <Pressable onPress={() => openAdd("shift")} hitSlop={8} testID="add-shift-btn">
+            <Ionicons name="add-circle" size={24} color={colors.brand} />
+          </Pressable>
+        </View>
         <View style={{ flexDirection: "row", gap: spacing.md }}>
           {data.shifts.slice(0, 2).map((s) => (
             <View key={s.id} style={[styles.shiftCard, { flex: 1 }]} testID={`shift-${s.id}`}>
@@ -230,7 +259,12 @@ export default function HojeScreen() {
         </View>
 
         {/* Appointments */}
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Próximos compromissos</Text></View>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Próximos compromissos</Text>
+          <Pressable onPress={() => openAdd("appointment")} hitSlop={8} testID="add-appointment-btn">
+            <Ionicons name="add-circle" size={24} color={colors.brand} />
+          </Pressable>
+        </View>
         <View style={styles.card}>
           {data.appointments.map((a, idx) => (
             <View key={a.id} style={[styles.apptRow, idx > 0 && styles.divider]}>
@@ -239,7 +273,7 @@ export default function HojeScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.apptTitle}>{a.title}</Text>
-                <Text style={styles.apptSub}>{a.when} · {a.doctor} · {a.place}</Text>
+                <Text style={styles.apptSub}>{a.when} · {a.doctor || "Consulta"} · {a.place || "Clínica"}</Text>
               </View>
             </View>
           ))}
@@ -258,6 +292,22 @@ export default function HojeScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* FAB Floating Action Button */}
+      <Pressable
+        style={styles.fab}
+        onPress={() => openAdd("medication")}
+        testID="fab-add-care"
+      >
+        <Ionicons name="add" size={28} color={colors.onBrand} />
+      </Pressable>
+
+      <AddCareModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSuccess={load}
+        initialCategory={modalCategory}
+      />
     </SafeAreaView>
   );
 }
@@ -296,6 +346,39 @@ const styles = StyleSheet.create({
   shortcut: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
   shortIcon: { width: 36, height: 36, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
   shortLabel: { fontFamily: type.sans, fontSize: 14, color: colors.onSurface, fontWeight: "600", flex: 1 },
+
+  mainAddBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.brand,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    marginTop: spacing.md,
+    ...shadow.card,
+  },
+  mainAddBtnText: {
+    fontFamily: type.sans,
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.onBrand,
+  },
+
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brand,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    ...shadow.card,
+  },
 
   onboardCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.amber, padding: spacing.lg, marginTop: spacing.lg, gap: spacing.sm },
   onboardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
