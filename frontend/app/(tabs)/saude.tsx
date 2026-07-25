@@ -15,7 +15,7 @@ const kindIcon: Record<string, keyof typeof import("@expo/vector-icons/build/Ion
 };
 
 export default function SaudeScreen() {
-  const { authFetch } = useAuth();
+  const { authFetch, elderName } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,7 +37,7 @@ export default function SaudeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]} testID="saude-screen">
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 160 }}>
-        <Text style={styles.title}>Saúde da Dona Maria</Text>
+        <Text style={styles.title}>Saúde de {elderName || "quem você cuida"}</Text>
         <Text style={styles.subtitle}>Tudo que a família registrou, em ordem.</Text>
 
         <View style={{ marginTop: spacing.xl }}>

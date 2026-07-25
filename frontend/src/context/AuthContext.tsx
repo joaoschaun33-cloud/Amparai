@@ -18,6 +18,11 @@ type AuthContextValue = {
   loading: boolean;
   /** null = ainda não sabemos; true = precisa cadastrar a pessoa cuidada. */
   needsOnboarding: boolean | null;
+  /** Nome da pessoa cuidada (household). Ex.: "Dona Maria", "Vó Ana". */
+  elderName: string;
+  /** Papel do usuário no círculo: "coordenador" | "familiar". */
+  role: string;
+  isCoordinator: boolean;
   refreshOnboarding: () => Promise<void>;
   loginWithGoogle: () => Promise<boolean>;
   logout: () => Promise<void>;
@@ -71,9 +76,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
+  const [elderName, setElderName] = useState<string>("");
+  const [role, setRole] = useState<string>("coordenador");
 
-  // Descobre se a conta já tem a pessoa cuidada cadastrada. Contas novas caem no
-  // onboarding em vez de entrar num app vazio (ou, pior, com dados de exemplo).
+  // Descobre se a conta já tem a pessoa cuidada cadastrada, o nome dela e o papel do
+  // usuário no círculo. Contas novas caem no onboarding em vez de um app vazio.
   const checkOnboarding = useCallback(async (t: string) => {
     try {
       const r = await fetch(`${BACKEND}/api/onboarding/status`, {
@@ -82,6 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (r.ok) {
         const d = await r.json();
         setNeedsOnboarding(!d.has_elder);
+        setElderName((d.elder_name || "").trim());
+        setRole(d.role || "coordenador");
         return;
       }
     } catch {}
@@ -191,7 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, needsOnboarding, refreshOnboarding, loginWithGoogle, logout, authFetch }}
+      value={{ user, token, loading, needsOnboarding, elderName, role, isCoordinator: role === "coordenador", refreshOnboarding, loginWithGoogle, logout, authFetch }}
     >
       {children}
     </AuthContext.Provider>

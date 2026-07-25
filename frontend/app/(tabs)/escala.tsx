@@ -8,7 +8,7 @@ import { useAuth } from "@/src/context/AuthContext";
 type Shift = { id: string; day: string; day_label: string; caregiver_name: string; caregiver_avatar: string; role: string; slot: string; covered: boolean };
 
 export default function EscalaScreen() {
-  const { authFetch } = useAuth();
+  const { authFetch, elderName } = useAuth();
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [contribution, setContribution] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -35,7 +35,7 @@ export default function EscalaScreen() {
     <SafeAreaView style={styles.container} edges={["top"]} testID="escala-screen">
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}>
         <Text style={styles.title}>Escala da família</Text>
-        <Text style={styles.subtitle}>Quem está com a Dona Maria, em que dia.</Text>
+        <Text style={styles.subtitle}>Quem está com {elderName || "quem você cuida"}, em que dia.</Text>
 
         <View style={{ marginTop: spacing.xl }}>
           {shifts.map((s) => (

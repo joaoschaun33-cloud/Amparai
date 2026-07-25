@@ -992,6 +992,8 @@ async def onboarding_status(authorization: Optional[str] = Header(None)):
         "total": 3,
         "has_elder": bool(elder),
         "has_medications": medications > 0,
+        "elder_name": (elder.get("name") if elder else None),
+        "role": hh["role"],
     }
 
 # ---------- Círculo (members + invitations) ----------

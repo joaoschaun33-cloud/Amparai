@@ -16,7 +16,7 @@ type HojeData = {
 };
 
 export default function HojeScreen() {
-  const { authFetch, user, logout } = useAuth();
+  const { authFetch, user, logout, elderName } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<HojeData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -246,7 +246,7 @@ export default function HojeScreen() {
         </View>
 
         {/* Weekly summary */}
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Como foi a semana da mamãe</Text></View>
+        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Como foi a semana de {elderName || "quem você cuida"}</Text></View>
         <View style={styles.summaryCard} testID="weekly-summary">
           <View style={styles.summaryIcon}>
             <Ionicons name="sparkles" size={16} color={colors.onAmber} />
