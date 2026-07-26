@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -34,6 +34,12 @@ export default function AddCareModal({
   const [category, setCategory] = useState<CareCategory>(initialCategory);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setCategory(initialCategory);
+    }
+  }, [visible, initialCategory]);
 
   // Form states
   // 1. Remédio
