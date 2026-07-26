@@ -665,6 +665,7 @@ class AppointmentIn(BaseModel):
     location: Optional[str] = None
 
 class ShiftIn(BaseModel):
+    date: Optional[str] = None  # YYYY-MM-DD
     day_label: str
     slot: str
     caregiver_name: str
@@ -746,9 +747,11 @@ async def create_shift(data: ShiftIn, authorization: Optional[str] = Header(None
     hh = await resolve_household(user)
     shift_id = f"shift_{uuid.uuid4().hex[:8]}"
     avatar = data.caregiver_name.strip()[0].upper() if data.caregiver_name.strip() else "C"
+    iso_date = data.date.strip() if (data.date and data.date.strip()) else datetime.now(timezone.utc).strftime("%Y-%m-%d")
     item = {
         "id": shift_id,
         "owner_id": hh["owner_id"],
+        "date": iso_date,
         "day": "hoje",
         "day_label": data.day_label.strip(),
         "slot": data.slot.strip(),
