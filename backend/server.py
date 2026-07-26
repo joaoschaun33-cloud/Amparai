@@ -1697,25 +1697,43 @@ async def remind_medication(med_id: str, authorization: Optional[str] = Header(N
 @api_router.post("/sos")
 async def sos(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    elder = await db.elders.find_one({"owner_id": user["user_id"]}, {"_id": 0})
-    scans_cursor = db.wristband_scans.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).sort("when", -1).limit(5)
+    hh = await resolve_household(user)
+    uid = hh["owner_id"]
+
+    elder = await db.elders.find_one({"owner_id": uid}, {"_id": 0})
+    scans_cursor = db.wristband_scans.find({"owner_id": uid}, {"_id": 0, "owner_id": 0}).sort("when", -1).limit(5)
     scans = await scans_cursor.to_list(5)
     for s in scans:
         if isinstance(s.get("when"), datetime):
             s["when"] = s["when"].isoformat()
+
     # latest ping for real map
-    latest_ping = await db.location_pings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}, sort=[("when", -1)])
+    latest_ping = await db.location_pings.find_one({"owner_id": uid}, {"_id": 0, "owner_id": 0}, sort=[("when", -1)])
     if latest_ping and isinstance(latest_ping.get("when"), datetime):
         latest_ping["when"] = latest_ping["when"].isoformat()
-    settings = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}) or {}
+
+    settings = await db.location_settings.find_one({"owner_id": uid}, {"_id": 0, "owner_id": 0}) or {}
     is_seeded = user.get("email") in SEEDED_ACCOUNTS
-    members = await db.members.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).to_list(50)
-    member_names = [m.get("name") for m in members if m.get("name")]
+
+    # Real circle members in this household:
+    members = await db.members.find({"owner_id": uid}, {"_id": 0, "owner_id": 0}).to_list(50)
+    coord = await db.users.find_one({"user_id": uid})
+
+    circle_names = []
+    if coord and coord.get("name"):
+        circle_names.append(coord.get("name"))
+    for m in members:
+        if m.get("name") and m.get("name") not in circle_names:
+            circle_names.append(m.get("name"))
+
+    if not circle_names:
+        circle_names = [user.get("name", "Você")]
+
     # notify circle
     try:
         elder_display = get_elder_display_name(elder)
         await send_push(
-            recipients=[user["user_id"]],
+            recipients=[uid],
             data={
                 "title": "SOS acionado",
                 "message": f"Modo busca em {elder_display} — todos avisados.",
@@ -1725,6 +1743,7 @@ async def sos(authorization: Optional[str] = Header(None)):
         )
     except Exception as e:
         logging.warning(f"Push (sos) failed: {e}")
+
     if is_seeded:
         # Conta de teste/demo: payload de exemplo (a suíte depende dele).
         last_location = (latest_ping or {}).get("address") or (scans[0]["address"] if scans and scans[0].get("address") else settings.get("home_address", "Rua das Acácias, 210 — Bairro Jardim"))
@@ -1732,12 +1751,12 @@ async def sos(authorization: Optional[str] = Header(None)):
         circle_notified = ["Ana", "Carla", "Bruno", "Dona Rita"]
         elder_name = elder.get("name") if elder else "Dona Maria"
     else:
-        # Família real: SÓ o que existe de verdade. Nunca inventar quem foi avisado
-        # (o círculo real vem dos membros) nem endereço/horário — é o fluxo de emergência.
-        last_location = (latest_ping or {}).get("address") or (scans[0].get("address") if scans else None) or settings.get("home_address")
-        last_seen = (latest_ping or {}).get("when")
-        circle_notified = member_names
-        elder_name = elder.get("name") if elder else None
+        # Família real: SÓ o que existe de verdade. Nunca inventar quem foi avisado.
+        last_location = (latest_ping or {}).get("address") or (scans[0].get("address") if scans else None) or settings.get("home_address", "Localização não registrada")
+        last_seen = (latest_ping or {}).get("when") or "agora"
+        circle_notified = circle_names
+        elder_name = elder.get("name") if elder else "Sua mãe"
+
     return {
         "status": "acionado",
         "elder_id": elder.get("id") if elder else None,
