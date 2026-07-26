@@ -153,16 +153,6 @@ export default function HojeScreen() {
           </Pressable>
         </View>
 
-        {/* Main Care Registration Action Button */}
-        <Pressable
-          style={styles.mainAddBtn}
-          onPress={() => openAdd("medication")}
-          testID="main-add-care-btn"
-        >
-          <Ionicons name="add-circle" size={22} color={colors.onBrand} />
-          <Text style={styles.mainAddBtnText}>Registrar Cuidado (Remédio, Diário, Consulta, Plantão)</Text>
-        </Pressable>
-
         {/* Onboarding checklist — only when incomplete */}
         {onboarding && onboarding.completed < onboarding.total && (
           <View style={styles.onboardCard} testID="onboarding-checklist">
