@@ -12,7 +12,7 @@ export default function ConvitePublic() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const router = useRouter();
   const { user, loading, authFetch, loginWithGoogle, refreshOnboarding } = useAuth();
-  const [info, setInfo] = useState<{ invitation: { name: string; role: string; owner_name?: string; accepted: boolean }; elder_name: string } | null>(null);
+  const [info, setInfo] = useState<{ invitation: { name: string; role: string; owner_name?: string; accepted: boolean }; elder_name: string; owner_name?: string } | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export default function ConvitePublic() {
 
         <Text style={styles.title}>Oi, {info.invitation.name} 💛</Text>
         <Text style={styles.body}>
-          Você foi convidado(a) para o <Text style={styles.bold}>círculo de cuidado de {info.elder_name}</Text> no Amparai.
+          <Text style={styles.bold}>{info.owner_name || "Um familiar"}</Text> convidou você para o <Text style={styles.bold}>círculo de cuidado de {info.elder_name}</Text> no Amparai.
         </Text>
         <Text style={styles.body}>
           Aqui a família se organiza junta: escala, remédios, saúde e custos — sem grupo caótico de WhatsApp.

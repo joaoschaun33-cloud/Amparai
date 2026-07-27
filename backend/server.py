@@ -1246,9 +1246,17 @@ async def get_invitation(code: str):
     inv = await db.invitations.find_one({"code": code}, {"_id": 0})
     if not inv:
         raise HTTPException(status_code=404, detail="Convite não encontrado")
-    elder = await db.elders.find_one({"owner_id": inv["owner_id"]}, {"_id": 0, "owner_id": 0})
-    inv.pop("owner_id", None)
-    return {"invitation": inv, "elder_name": elder["name"] if elder else "sua família"}
+    owner_id = inv.get("owner_id")
+    elder = await db.elders.find_one({"owner_id": owner_id}, {"_id": 0, "owner_id": 0}) if owner_id else None
+    coord = await db.users.find_one({"user_id": owner_id}, {"_id": 0}) if owner_id else None
+    owner_name = coord.get("name") if coord else "Um familiar"
+    inv_copy = dict(inv)
+    inv_copy.pop("owner_id", None)
+    return {
+        "invitation": inv_copy,
+        "elder_name": elder["name"] if elder else "sua família",
+        "owner_name": owner_name,
+    }
 
 # ---------- WhatsApp gentle nudge (deep-link, no Meta API) ----------
 class NudgeIn(BaseModel):
