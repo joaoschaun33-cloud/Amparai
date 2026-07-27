@@ -3,25 +3,26 @@ import { Platform } from 'react-native';
 
 export const colors = {
   surface: '#F7F0E6',
-  surfaceSecondary: '#FFF9F0',
+  surfaceSecondary: '#FFFFFF',
   surfaceTertiary: '#EAE0D3',
-  onSurface: '#3E2F25',
+  onSurface: '#2D2621',
   onSurfaceSoft: '#6B5A4C',
 
-  brand: '#C4633F',
+  brand: '#2E7D60', // Airbnb Primary Verde Marca
   onBrand: '#FFFFFF',
+  brandSoft: '#E8F4F0',
 
   olive: '#5C6E49',
   onOlive: '#FFFFFF',
 
-  amber: '#E8A854',
-  onAmber: '#3E2F25',
+  amber: '#D97706',
+  onAmber: '#FFFFFF',
 
-  clayRed: '#A9402E', // SOS only
+  clayRed: '#A9402E', // SOS Emergency Mode
   onClayRed: '#FFFFFF',
 
-  border: '#EAE0D3',
-  divider: '#EAE0D3',
+  border: '#E6DEC6',
+  divider: '#E6DEC6',
 };
 
 export const spacing = {
@@ -35,24 +36,32 @@ export const spacing = {
 };
 
 export const radius = {
+  xs: 4,
   sm: 8,
-  md: 16,
-  lg: 24,
-  pill: 999,
+  md: 14, // Airbnb Card Geometry (~14px)
+  lg: 20,
+  xl: 32,
+  pill: 9999,
 };
 
 export const type = {
-  // Fraunces isn't installed as a font file; use platform serif as a warm fallback.
   serif: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }) as string,
   sans: Platform.select({ ios: 'System', android: 'sans-serif', default: 'System' }) as string,
 };
 
 export const shadow = {
   card: {
-    shadowColor: '#3E2F25',
+    shadowColor: '#2D2621',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
+  },
+  modal: {
+    shadowColor: '#2D2621',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
   },
 };

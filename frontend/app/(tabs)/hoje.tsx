@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { colors, spacing, radius, type, shadow } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
 import AddCareModal, { CareCategory } from "@/src/components/AddCareModal";
+import { CardSkeleton } from "@/src/components/SkeletonLoader";
 
 type HojeData = {
   greeting: string;
@@ -81,9 +82,11 @@ export default function HojeScreen() {
   if (!data) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color={colors.brand} />
-        </View>
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </ScrollView>
       </SafeAreaView>
     );
   }

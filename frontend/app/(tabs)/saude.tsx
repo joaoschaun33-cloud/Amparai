@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, type, shadow } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
 import AddCareModal from "@/src/components/AddCareModal";
+import { CardSkeleton } from "@/src/components/SkeletonLoader";
 
 type Event = { id: string; when: string; kind: string; title: string; detail: string; source: string };
 
@@ -34,7 +35,17 @@ export default function SaudeScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <View style={styles.container}><ActivityIndicator color={colors.brand} style={{ marginTop: 80 }} /></View>;
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={{ padding: spacing.lg, gap: spacing.md, marginTop: spacing.md }}>
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]} testID="saude-screen">
