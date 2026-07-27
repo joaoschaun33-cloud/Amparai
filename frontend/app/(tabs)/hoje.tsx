@@ -18,7 +18,7 @@ type HojeData = {
 };
 
 export default function HojeScreen() {
-  const { authFetch, user, logout, elderName, isCoordinator } = useAuth();
+  const { authFetch, user, elderName, isCoordinator } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<HojeData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -104,8 +104,8 @@ export default function HojeScreen() {
             <Text style={styles.hello}>Olá, {firstName}</Text>
             <Text style={styles.date}>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}</Text>
           </View>
-          <Pressable onPress={logout} testID="logout-button" hitSlop={12}>
-            <Ionicons name="log-out-outline" size={22} color={colors.onSurfaceSoft} />
+          <Pressable onPress={() => router.push("/conta")} testID="conta-button" hitSlop={12}>
+            <Ionicons name="settings-outline" size={22} color={colors.onSurfaceSoft} />
           </Pressable>
         </View>
 

@@ -990,6 +990,53 @@ async def revoke_consent(request: Request, authorization: Optional[str] = Header
     return await get_consent_status(user["user_id"])
 
 
+# ---------- Conta: exclusão de dados (LGPD Art. 18) ----------
+# Coleções apagadas quando o Coordenador exclui a conta (dados da família).
+# `consents` NUNCA entra aqui: é retido por 5 anos (obrigação legal / ônus da prova),
+# conforme a Política de Privacidade.
+DELETE_HOUSEHOLD_COLLECTIONS = [
+    "elders", "medications", "shifts", "health_events", "expenses",
+    "appointments", "clinical", "location_settings", "location_pings",
+    "wristband_scans", "members", "invitations",
+]
+
+@api_router.delete("/account")
+async def delete_account(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    uid = user["user_id"]
+    # Contas de teste/demo não podem se autoexcluir (protege a suíte de integração).
+    if user.get("email") in SEEDED_ACCOUNTS:
+        raise HTTPException(status_code=403, detail="Conta de teste/demo não pode ser apagada.")
+    hh = await resolve_household(user)
+
+    if hh["role"] == "coordenador":
+        # Apaga todos os dados da família (exceto o log de consentimento, retido por lei).
+        for col in DELETE_HOUSEHOLD_COLLECTIONS:
+            await getattr(db, col).delete_many({"owner_id": uid})
+        # Desfaz o vínculo de todos os membros deste círculo.
+        await db.memberships.delete_many({"household_owner_id": uid})
+    else:
+        # Familiar: apenas sai do círculo — NÃO apaga o dado da família.
+        await db.memberships.delete_many({"member_uid": uid})
+
+    # Comum: token de push do aparelho e registro do usuário.
+    await db.device_tokens.delete_many({"user_id": uid})
+    try:
+        db_fs.collection("users").document(uid).delete()
+    except Exception as e:
+        logging.warning(f"delete user doc failed (non-blocking): {e}")
+
+    # `consents` é RETIDO por 5 anos — nunca apagado aqui.
+
+    # Exclusão da conta de autenticação (irreversível).
+    try:
+        auth.delete_user(uid)
+    except Exception as e:
+        logging.warning(f"auth.delete_user failed (non-blocking): {e}")
+
+    return {"ok": True, "role": hh["role"]}
+
+
 # ---------- Clinical (dados clínicos do idoso) ----------
 class ClinicalData(BaseModel):
     blood_type: Optional[str] = None

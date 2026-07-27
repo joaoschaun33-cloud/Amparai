@@ -73,7 +73,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
     const inOnboarding = first === "onboarding";
     const inAppRoute =
-      inTabs || first === "clinico" || first === "circulo" || first === "sos" || first === "localizacao" || first === "consentimento";
+      inTabs || first === "clinico" || first === "circulo" || first === "sos" || first === "localizacao" || first === "consentimento" || first === "conta";
 
     if (!user) {
       if (inAppRoute || inOnboarding) router.replace("/");
