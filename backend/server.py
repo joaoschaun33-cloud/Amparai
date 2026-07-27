@@ -61,7 +61,29 @@ class FirestoreCursor:
         return self
 
     async def to_list(self, length=None):
-        docs = await self.query.get()
+        q = self.query
+        limit_to = length or self.limit_count
+        native_sorted = False
+
+        if self.sort_key:
+            try:
+                direction = (
+                    google_firestore.Query.DESCENDING
+                    if self.sort_direction == -1
+                    else google_firestore.Query.ASCENDING
+                )
+                q_native = q.order_by(self.sort_key, direction=direction)
+                if limit_to is not None:
+                    q_native = q_native.limit(limit_to)
+                docs = await q_native.get()
+                native_sorted = True
+            except Exception:
+                docs = await self.query.get()
+        else:
+            if limit_to is not None:
+                q = q.limit(limit_to)
+            docs = await q.get()
+
         results = []
         for d in docs:
             res = d.to_dict()
@@ -69,8 +91,8 @@ class FirestoreCursor:
                 if "id" not in res:
                     res["id"] = d.id
                 results.append(res)
-        
-        if self.sort_key:
+
+        if self.sort_key and not native_sorted:
             def get_sort_key(x):
                 val = x.get(self.sort_key)
                 if val is None:
@@ -80,8 +102,7 @@ class FirestoreCursor:
                 return str(val)
             results.sort(key=get_sort_key, reverse=(self.sort_direction == -1))
 
-        limit_to = length or self.limit_count
-        if limit_to is not None:
+        if not native_sorted and limit_to is not None:
             results = results[:limit_to]
 
         if self.projection:
