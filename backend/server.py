@@ -1413,7 +1413,8 @@ async def public_scan(elder_id: str, data: ScanIn):
 @api_router.get("/pulseira/{elder_id}/scans")
 async def list_scans(elder_id: str, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    elder = await db.elders.find_one({"id": elder_id, "owner_id": user["user_id"]}, {"_id": 0})
+    hh = await resolve_household(user)
+    elder = await db.elders.find_one({"id": elder_id, "owner_id": hh["owner_id"]}, {"_id": 0})
     if not elder:
         raise HTTPException(status_code=404, detail="Não encontrado")
     scans = await db.wristband_scans.find({"elder_id": elder_id}, {"_id": 0, "owner_id": 0}).sort("when", -1).to_list(50)
@@ -1555,7 +1556,8 @@ def _haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 @api_router.get("/location/settings")
 async def get_location_settings(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    s = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
+    hh = await resolve_household(user)
+    s = await db.location_settings.find_one({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0})
     if not s:
         if user.get("email") in SEEDED_ACCOUNTS:
             s = {
@@ -1566,7 +1568,9 @@ async def get_location_settings(authorization: Optional[str] = Header(None)):
                 "quiet_start": "22:00",
                 "quiet_end": "06:00",
             }
+            await db.location_settings.insert_one({"owner_id": hh["owner_id"], **s})
         else:
+            # Família real: sem endereço inventado e sem gravar (o Coordenador configura).
             s = {
                 "home_address": None,
                 "home_lat": None,
@@ -1575,22 +1579,24 @@ async def get_location_settings(authorization: Optional[str] = Header(None)):
                 "quiet_start": "22:00",
                 "quiet_end": "06:00",
             }
-        await db.location_settings.insert_one({"owner_id": user["user_id"], **s})
     return s
 
 @api_router.put("/location/settings")
 async def update_location_settings(body: LocationSettings, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    hh = await resolve_household(user)
+    require_coordinator(hh)  # configurar o geofence é governança
     payload = {k: v for k, v in body.model_dump().items() if v is not None}
-    await db.location_settings.update_one({"owner_id": user["user_id"]}, {"$set": payload}, upsert=True)
+    await db.location_settings.update_one({"owner_id": hh["owner_id"]}, {"$set": payload}, upsert=True)
     return {"ok": True}
 
 @api_router.get("/location/current")
 async def location_current(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    settings = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}) or {}
-    latest = await db.location_pings.find_one({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}, sort=[("when", -1)])
-    trail_cursor = db.location_pings.find({"owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0}).sort("when", -1).limit(30)
+    hh = await resolve_household(user)
+    settings = await db.location_settings.find_one({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0}) or {}
+    latest = await db.location_pings.find_one({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0}, sort=[("when", -1)])
+    trail_cursor = db.location_pings.find({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0}).sort("when", -1).limit(30)
     trail = await trail_cursor.to_list(30)
     for t in trail:
         if isinstance(t.get("when"), datetime):
@@ -1620,8 +1626,9 @@ class LocationPing(BaseModel):
 @api_router.post("/location/ping")
 async def location_ping(body: LocationPing, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
+    hh = await resolve_household(user)
     doc = {
-        "owner_id": user["user_id"],
+        "owner_id": hh["owner_id"],
         "id": f"ping_{uuid.uuid4().hex[:10]}",
         "lat": body.lat,
         "lng": body.lng,
@@ -1632,17 +1639,17 @@ async def location_ping(body: LocationPing, authorization: Optional[str] = Heade
     await db.location_pings.insert_one(doc)
 
     # Proactive check: outside geofence?
-    settings = await db.location_settings.find_one({"owner_id": user["user_id"]}, {"_id": 0}) or {}
+    settings = await db.location_settings.find_one({"owner_id": hh["owner_id"]}, {"_id": 0}) or {}
     home_lat = settings.get("home_lat"); home_lng = settings.get("home_lng")
     if home_lat is not None and home_lng is not None:
         dist = _haversine_m(body.lat, body.lng, home_lat, home_lng)
         radius = settings.get("radius_m", 150)
         if dist > radius:
             try:
-                elder = await db.elders.find_one({"owner_id": user["user_id"]})
+                elder = await db.elders.find_one({"owner_id": hh["owner_id"]})
                 elder_display = get_elder_display_name(elder)
                 await send_push(
-                    recipients=[user["user_id"]],
+                    recipients=[hh["owner_id"]],
                     data={
                         "title": f"{elder_display} saiu de casa",
                         "message": f"Está a {int(dist)}m — acompanhamento iniciado.",
@@ -1697,21 +1704,24 @@ async def simulate_leave(authorization: Optional[str] = Header(None)):
 @api_router.post("/location/clear")
 async def clear_pings(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    await db.location_pings.delete_many({"owner_id": user["user_id"]})
+    hh = await resolve_household(user)
+    require_coordinator(hh)  # limpar o histórico de localização é governança/reset
+    await db.location_pings.delete_many({"owner_id": hh["owner_id"]})
     return {"ok": True}
 
 # ---------- Medication reminder (mock: sends a push now) ----------
 @api_router.post("/medications/{med_id}/remind")
 async def remind_medication(med_id: str, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    med = await db.medications.find_one({"id": med_id, "owner_id": user["user_id"]}, {"_id": 0, "owner_id": 0})
+    hh = await resolve_household(user)
+    med = await db.medications.find_one({"id": med_id, "owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0})
     if not med:
         raise HTTPException(404, "Not found")
     try:
-        elder = await db.elders.find_one({"owner_id": user["user_id"]})
+        elder = await db.elders.find_one({"owner_id": hh["owner_id"]})
         elder_display = get_elder_display_name(elder)
         await send_push(
-            recipients=[user["user_id"]],
+            recipients=[hh["owner_id"]],
             data={
                 "title": f"Hora do {med['name']}",
                 "message": f"{med['dosage']} — dá uma passadinha na {elder_display} 💛",
@@ -1811,10 +1821,20 @@ async def set_request_path(request: Request, call_next):
     response = await call_next(request)
     return response
 
+# CORS restrito às origens reais do produto (app de saúde — sem wildcard).
+ALLOWED_ORIGINS = [
+    "https://amparai.com.br",
+    "https://www.amparai.com.br",
+    "https://app.amparai.com.br",
+    "https://amparai-app.web.app",
+    "https://amparai-ce7f4.web.app",
+    "http://localhost:8081",
+    "http://localhost:19006",
+]
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
