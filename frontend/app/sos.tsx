@@ -58,7 +58,7 @@ export default function SosModal() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Ionicons name="people" size={20} color={colors.clayRed} />
-              <Text style={styles.cardTitle}>Círculo avisado</Text>
+              <Text style={styles.cardTitle}>Círculo de Cuidado Notificado</Text>
             </View>
             <View style={styles.circleRow}>
               {data.circle_notified.map((n) => (
