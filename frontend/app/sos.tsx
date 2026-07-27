@@ -28,6 +28,18 @@ export default function SosModal() {
     })();
   }, [authFetch]);
 
+  const handleClose = () => {
+    try {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(tabs)/hoje");
+      }
+    } catch {
+      router.replace("/(tabs)/hoje");
+    }
+  };
+
   const call = () => {
     if (data?.call_number) RNLinking.openURL(`tel:${data.call_number}`);
   };
@@ -36,8 +48,13 @@ export default function SosModal() {
     <SafeAreaView style={styles.container} testID="sos-modal">
       <View style={styles.headerRow}>
         <Text style={styles.title}>Modo busca</Text>
-        <Pressable onPress={() => router.back()} testID="sos-close" hitSlop={12}>
-          <Ionicons name="close" size={26} color={colors.onClayRed} />
+        <Pressable
+          onPress={handleClose}
+          testID="sos-close"
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.7 }]}
+        >
+          <Ionicons name="close" size={28} color={colors.onClayRed} />
         </Pressable>
       </View>
       <Text style={styles.subtitle}>Firme, calmo, com você.</Text>
@@ -90,6 +107,13 @@ export default function SosModal() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.clayRed, padding: spacing.lg },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.sm },
+  closeBtn: {
+    padding: 6,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   title: { fontFamily: type.serif, fontSize: 28, color: colors.onClayRed, fontWeight: "700" },
   subtitle: { fontFamily: type.sans, fontSize: 16, color: "#FFFFFF", fontWeight: "600", marginTop: 4, marginBottom: spacing.lg },
   card: {
