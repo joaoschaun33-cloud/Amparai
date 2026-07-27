@@ -24,7 +24,7 @@ const COGNITIVE = ["orientada", "leve", "moderada", "avancada"];
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 export default function ClinicoScreen() {
-  const { authFetch } = useAuth();
+  const { authFetch, isCoordinator } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<Clinico | null>(null);
   const [elderName, setElderName] = useState("");
@@ -46,6 +46,7 @@ export default function ClinicoScreen() {
   useEffect(() => { load(); }, [load]);
 
   const save = async (next: Clinico) => {
+    if (!isCoordinator) return; // Governança: só o coordenador do cuidado edita o prontuário.
     setSaving(true);
     setData(next);
     try {
@@ -135,6 +136,16 @@ export default function ClinicoScreen() {
         <Text style={styles.title}>{elderName || "Dados de saúde"}</Text>
         <Text style={styles.subtitle}>O que o médico precisa saber, num só lugar.</Text>
 
+        {!isCoordinator && (
+          <View style={styles.readonlyBanner} testID="clinico-readonly">
+            <Ionicons name="eye-outline" size={18} color={colors.onSurfaceSoft} />
+            <Text style={styles.readonlyText}>
+              Você está acompanhando os dados de {elderName || "quem você cuida"}. Só o
+              coordenador do cuidado pode editar o prontuário.
+            </Text>
+          </View>
+        )}
+
         <View style={styles.rowCards}>
           <View style={[styles.miniCard, { backgroundColor: colors.brand }]}>
             <Text style={styles.miniLabel}>Tipo sanguíneo</Text>
@@ -191,37 +202,41 @@ export default function ClinicoScreen() {
           </View>
         </Section>
 
-        <Section title="Alergias" action={{ label: "Adicionar", onPress: () => openEdit("allergies") }}>
+        <Section title="Alergias" action={isCoordinator ? { label: "Adicionar", onPress: () => openEdit("allergies") } : undefined}>
           {data.allergies.length === 0 ? <Text style={styles.empty}>Nenhuma registrada</Text> : (
             <View style={{ gap: spacing.sm }}>
               {data.allergies.map((a, idx) => (
                 <View key={idx} style={styles.tagRow}>
                   <Text style={styles.tagText}>{a}</Text>
-                  <Pressable onPress={() => removeSimple("allergies", idx)} testID={`del-allergy-${idx}`} hitSlop={10}>
-                    <Ionicons name="close-circle" size={20} color={colors.onSurfaceSoft} />
-                  </Pressable>
+                  {isCoordinator && (
+                    <Pressable onPress={() => removeSimple("allergies", idx)} testID={`del-allergy-${idx}`} hitSlop={10}>
+                      <Ionicons name="close-circle" size={20} color={colors.onSurfaceSoft} />
+                    </Pressable>
+                  )}
                 </View>
               ))}
             </View>
           )}
         </Section>
 
-        <Section title="Condições" action={{ label: "Adicionar", onPress: () => openEdit("conditions") }}>
+        <Section title="Condições" action={isCoordinator ? { label: "Adicionar", onPress: () => openEdit("conditions") } : undefined}>
           {data.conditions.length === 0 ? <Text style={styles.empty}>Nenhuma registrada</Text> : (
             <View style={{ gap: spacing.sm }}>
               {data.conditions.map((a, idx) => (
                 <View key={idx} style={styles.tagRow}>
                   <Text style={styles.tagText}>{a}</Text>
-                  <Pressable onPress={() => removeSimple("conditions", idx)} testID={`del-condition-${idx}`} hitSlop={10}>
-                    <Ionicons name="close-circle" size={20} color={colors.onSurfaceSoft} />
-                  </Pressable>
+                  {isCoordinator && (
+                    <Pressable onPress={() => removeSimple("conditions", idx)} testID={`del-condition-${idx}`} hitSlop={10}>
+                      <Ionicons name="close-circle" size={20} color={colors.onSurfaceSoft} />
+                    </Pressable>
+                  )}
                 </View>
               ))}
             </View>
           )}
         </Section>
 
-        <Section title="Medicações contínuas" action={{ label: "Adicionar", onPress: () => openEdit("meds") }}>
+        <Section title="Medicações contínuas" action={isCoordinator ? { label: "Adicionar", onPress: () => openEdit("meds") } : undefined}>
           <View style={{ gap: spacing.sm }}>
             {data.continuous_meds.map((m, idx) => (
               <View key={idx} style={styles.itemCard}>
@@ -229,15 +244,17 @@ export default function ClinicoScreen() {
                   <Text style={styles.itemTitle}>{m.name}</Text>
                   <Text style={styles.itemSub}>{m.dosage}{m.notes ? ` · ${m.notes}` : ""}</Text>
                 </View>
-                <Pressable onPress={() => removeMed(idx)} testID={`del-med-${idx}`} hitSlop={10}>
-                  <Ionicons name="close-circle" size={20} color={colors.onSurfaceSoft} />
-                </Pressable>
+                {isCoordinator && (
+                  <Pressable onPress={() => removeMed(idx)} testID={`del-med-${idx}`} hitSlop={10}>
+                    <Ionicons name="close-circle" size={20} color={colors.onSurfaceSoft} />
+                  </Pressable>
+                )}
               </View>
             ))}
           </View>
         </Section>
 
-        <Section title="Cirurgias / procedimentos" action={{ label: "Adicionar", onPress: () => openEdit("surgeries") }}>
+        <Section title="Cirurgias / procedimentos" action={isCoordinator ? { label: "Adicionar", onPress: () => openEdit("surgeries") } : undefined}>
           <View style={{ gap: spacing.sm }}>
             {data.surgeries.map((s, idx) => (
               <View key={idx} style={styles.itemCard}>
@@ -249,7 +266,7 @@ export default function ClinicoScreen() {
           </View>
         </Section>
 
-        <Section title="Plano de saúde" action={{ label: data.health_plan?.name ? "Editar" : "Adicionar", onPress: () => openEdit("plan") }}>
+        <Section title="Plano de saúde" action={isCoordinator ? { label: data.health_plan?.name ? "Editar" : "Adicionar", onPress: () => openEdit("plan") } : undefined}>
           {data.health_plan?.name ? (
             <View style={styles.itemCard}>
               <Text style={styles.itemTitle}>{data.health_plan.name}</Text>
@@ -258,7 +275,7 @@ export default function ClinicoScreen() {
           ) : <Text style={styles.empty}>Sem plano cadastrado</Text>}
         </Section>
 
-        <Section title="Contatos de emergência" action={{ label: "Adicionar", onPress: () => openEdit("contacts") }}>
+        <Section title="Contatos de emergência" action={isCoordinator ? { label: "Adicionar", onPress: () => openEdit("contacts") } : undefined}>
           <View style={{ gap: spacing.sm }}>
             {data.emergency_contacts.map((c, idx) => (
               <View key={idx} style={styles.itemCard}>
@@ -266,9 +283,11 @@ export default function ClinicoScreen() {
                   <Text style={styles.itemTitle}>{c.name}</Text>
                   <Text style={styles.itemSub}>{c.phone} · {c.relation}</Text>
                 </View>
-                <Pressable onPress={() => removeContact(idx)} testID={`del-contact-${idx}`} hitSlop={10}>
-                  <Ionicons name="close-circle" size={20} color={colors.onSurfaceSoft} />
-                </Pressable>
+                {isCoordinator && (
+                  <Pressable onPress={() => removeContact(idx)} testID={`del-contact-${idx}`} hitSlop={10}>
+                    <Ionicons name="close-circle" size={20} color={colors.onSurfaceSoft} />
+                  </Pressable>
+                )}
               </View>
             ))}
             {data.emergency_contacts.length === 0 && <Text style={styles.empty}>Nenhum registrado</Text>}
@@ -389,6 +408,8 @@ const styles = StyleSheet.create({
   pillText: { fontFamily: type.sans, fontSize: 13, color: colors.onSurface, textTransform: "capitalize" },
   pillTextActive: { color: colors.onBrand, fontWeight: "700" },
   tagRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  readonlyBanner: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.md },
+  readonlyText: { flex: 1, fontFamily: type.sans, fontSize: 13, lineHeight: 19, color: colors.onSurfaceSoft },
   tagText: { fontFamily: type.sans, fontSize: 15, color: colors.onSurface, flex: 1 },
   itemCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
   itemTitle: { fontFamily: type.sans, fontSize: 15, color: colors.onSurface, fontWeight: "600" },

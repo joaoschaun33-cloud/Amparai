@@ -18,7 +18,7 @@ type HojeData = {
 };
 
 export default function HojeScreen() {
-  const { authFetch, user, logout, elderName } = useAuth();
+  const { authFetch, user, logout, elderName, isCoordinator } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<HojeData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -157,7 +157,7 @@ export default function HojeScreen() {
         </View>
 
         {/* Onboarding checklist — only when incomplete */}
-        {onboarding && onboarding.completed < onboarding.total && (
+        {isCoordinator && onboarding && onboarding.completed < onboarding.total && (
           <View style={styles.onboardCard} testID="onboarding-checklist">
             <View style={styles.onboardHeader}>
               <View>

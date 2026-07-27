@@ -20,7 +20,7 @@ const ROLES: { key: string; label: string; desc: string }[] = [
 ];
 
 export default function CirculoScreen() {
-  const { authFetch, user } = useAuth();
+  const { authFetch, user, isCoordinator } = useAuth();
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,9 +111,11 @@ export default function CirculoScreen() {
                   <Text style={styles.memberRole}>{roleLabel} · {roleDesc}</Text>
                   {m.phone && <Text style={styles.memberPhone}>{m.phone}</Text>}
                 </View>
-                <Pressable onPress={() => removeMember(m.id)} hitSlop={12} testID={`remove-member-${m.id}`}>
-                  <Ionicons name="close-circle-outline" size={22} color={colors.onSurfaceSoft} />
-                </Pressable>
+                {isCoordinator && (
+                  <Pressable onPress={() => removeMember(m.id)} hitSlop={12} testID={`remove-member-${m.id}`}>
+                    <Ionicons name="close-circle-outline" size={22} color={colors.onSurfaceSoft} />
+                  </Pressable>
+                )}
               </View>
             );
           })}
@@ -127,10 +129,12 @@ export default function CirculoScreen() {
           )}
         </View>
 
-        <Pressable style={styles.addBtn} onPress={() => setShowAdd(true)} testID="add-member-button">
-          <Ionicons name="person-add" size={20} color={colors.onBrand} />
-          <Text style={styles.addText}>Convidar alguém</Text>
-        </Pressable>
+        {isCoordinator && (
+          <Pressable style={styles.addBtn} onPress={() => setShowAdd(true)} testID="add-member-button">
+            <Ionicons name="person-add" size={20} color={colors.onBrand} />
+            <Text style={styles.addText}>Convidar alguém</Text>
+          </Pressable>
+        )}
       </ScrollView>
 
       {/* Add member modal */}
