@@ -11,6 +11,7 @@ const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL;
 type PublicElder = {
   elder: { name: string; photo_url: string };
   emergency_contacts: { name: string; phone: string; relation: string }[];
+  notice?: string;
 };
 
 export default function PulseiraPublic() {
@@ -108,6 +109,12 @@ export default function PulseiraPublic() {
               <TextInput style={styles.input} placeholder="Seu telefone (pra família ligar de volta)" placeholderTextColor={colors.onSurfaceSoft} value={finderPhone} onChangeText={setFinderPhone} keyboardType="phone-pad" testID="finder-phone" />
               <TextInput style={styles.input} placeholder="Onde ela está (rua, ponto de referência)" placeholderTextColor={colors.onSurfaceSoft} value={address} onChangeText={setAddress} testID="finder-address" />
               <TextInput style={[styles.input, { minHeight: 70 }]} placeholder="Como ela está / observações" placeholderTextColor={colors.onSurfaceSoft} value={note} onChangeText={setNote} multiline testID="finder-note" />
+              {data.notice && (
+                <View style={styles.noticeBox} testID="pulseira-notice">
+                  <Ionicons name="lock-closed" size={14} color={colors.onSurfaceSoft} />
+                  <Text style={styles.noticeText}>{data.notice}</Text>
+                </View>
+              )}
               <Pressable style={styles.sendBtn} onPress={sendScan} disabled={sending} testID="send-scan">
                 {sending ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.sendText}>Avisar a família</Text>}
               </Pressable>
@@ -146,6 +153,8 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, fontFamily: type.sans, fontSize: 15, color: colors.onSurface },
   sendBtn: { backgroundColor: colors.brand, borderRadius: radius.pill, paddingVertical: 14, alignItems: "center" },
   sendText: { fontFamily: type.sans, fontSize: 15, color: colors.onBrand, fontWeight: "700" },
+  noticeBox: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, backgroundColor: colors.surfaceTertiary, borderRadius: radius.sm, padding: spacing.md, marginTop: spacing.xs },
+  noticeText: { flex: 1, fontFamily: type.sans, fontSize: 12, lineHeight: 17, color: colors.onSurfaceSoft },
   sentCard: { alignItems: "center", padding: spacing.xl, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.olive, marginTop: spacing.md, gap: spacing.sm },
   sentTitle: { fontFamily: type.serif, fontSize: 20, color: colors.onSurface, fontWeight: "600" },
   sentSub: { fontFamily: type.sans, fontSize: 14, color: colors.onSurfaceSoft, textAlign: "center" },

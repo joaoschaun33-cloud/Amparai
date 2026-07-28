@@ -93,11 +93,13 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
   (mitiga o não-repúdio do "toque no app"). Bucket em `southamerica-east1`, não indexado,
   nunca exibido no app, retenção de 5 anos, download só por admin (parecer do advogado).
 
-### L2. Coleta de dados de terceiros na pulseira — [JURÍDICO] 🔴
-* **Problema**: `POST /api/pulseira/{id}/scan` grava **nome, telefone, observação e
-  localização de quem socorre** a pessoa idosa. Esse terceiro não tem conta, não aceitou
-  termo e não é informado do tratamento.
-* **Ação**: definir base legal + aviso mínimo antes da coleta.
+### L2. Coleta de dados de terceiros na pulseira — ✅ FEITO (Sprint 2 #10)
+* **Feito**: aviso just-in-time (texto do advogado) exibido no formulário público antes de
+  coletar os dados de quem socorre; base = proteção da vida (art. 11, II, "e").
+* **TTL 30 dias**: `expires_at` gravado em cada `wristband_scans`. **Ação de infra pendente**:
+  habilitar a política de TTL no Firestore sobre `wristband_scans.expires_at` (uma vez):
+  `gcloud firestore fields ttls update expires_at --collection-group=wristband_scans --enable-ttl`.
+* **Sanitização** rígida dos campos de terceiro (nome/telefone/nota/endereço) aplicada.
 
 ### L3. Exposição da rota pública da pulseira — [JURÍDICO] 🟡
 * **Situação**: já minimizada (D-004 removeu tipo sanguíneo, alergias e condições).

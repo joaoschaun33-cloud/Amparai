@@ -1431,6 +1431,20 @@ class ScanIn(BaseModel):
     coords: Optional[str] = None
     address: Optional[str] = None
 
+# Aviso just-in-time exibido a quem socorre, antes de coletar os dados dele (LGPD).
+PULSEIRA_NOTICE = (
+    "Para coordenar este resgate, seu nome, telefone e localização serão enviados à família. "
+    "Tratamos estes dados estritamente para a proteção da vida e os apagaremos automaticamente "
+    "em 30 dias."
+)
+
+def _sanitize_text(v: Optional[str], maxlen: int) -> Optional[str]:
+    """Sanitiza texto vindo de terceiro na rota pública: remove controles e limita tamanho."""
+    if not v:
+        return None
+    s = "".join(ch for ch in v if ch == "\n" or ch >= " ").strip()
+    return s[:maxlen] or None
+
 @api_router.get("/pulseira/{elder_id}")
 async def public_pulseira(elder_id: str):
     elder = await db.elders.find_one({"id": elder_id}, {"_id": 0})
@@ -1448,6 +1462,7 @@ async def public_pulseira(elder_id: str):
     return {
         "elder": {"name": first_name, "photo_url": elder.get("photo_url")},
         "emergency_contacts": clinical.get("emergency_contacts", []),
+        "notice": PULSEIRA_NOTICE,
     }
 
 @api_router.post("/pulseira/{elder_id}/scan")
@@ -1455,16 +1470,20 @@ async def public_scan(elder_id: str, data: ScanIn):
     elder = await db.elders.find_one({"id": elder_id}, {"_id": 0})
     if not elder:
         raise HTTPException(status_code=404, detail="Não encontrado")
+    now = now_utc()
     scan = {
         "id": f"scan_{uuid.uuid4().hex[:8]}",
         "elder_id": elder_id,
         "owner_id": elder["owner_id"],
-        "finder_name": data.finder_name,
-        "finder_phone": data.finder_phone,
-        "note": data.note,
-        "coords": data.coords,
-        "address": data.address,
-        "when": now_utc(),
+        "finder_name": _sanitize_text(data.finder_name, 80),
+        "finder_phone": _sanitize_text(data.finder_phone, 30),
+        "note": _sanitize_text(data.note, 300),
+        "coords": _sanitize_text(data.coords, 60),
+        "address": _sanitize_text(data.address, 200),
+        "when": now,
+        # TTL (LGPD): dado de terceiro expira em 30 dias. Requer política de TTL no Firestore
+        # sobre wristband_scans.expires_at (configuração de infra — ver GUIA abaixo).
+        "expires_at": now + timedelta(days=30),
     }
     await db.wristband_scans.insert_one(scan)
     return {"ok": True, "message": "Obrigado! Avisamos a família."}
