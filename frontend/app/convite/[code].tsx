@@ -11,7 +11,7 @@ const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL;
 export default function ConvitePublic() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const router = useRouter();
-  const { user, loading, authFetch, loginWithGoogle, refreshOnboarding } = useAuth();
+  const { user, loading, authFetch, loginWithGoogle, refreshOnboarding, track } = useAuth();
   const [info, setInfo] = useState<{ invitation: { name: string; role: string; owner_name?: string; accepted: boolean }; elder_name: string; owner_name?: string } | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [accepting, setAccepting] = useState(false);
@@ -35,6 +35,7 @@ export default function ConvitePublic() {
     try {
       const r = await authFetch(`/api/invitations/${code}/accept`, { method: "POST" });
       if (r.status === 201 || r.ok) {
+        track("convite_aceito");
         await refreshOnboarding?.();
         router.replace("/(tabs)/hoje");
         return;

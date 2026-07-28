@@ -36,7 +36,7 @@ const TERMS_URL = "https://amparai.com.br/termos.html";
 
 export default function Consentimento() {
   const router = useRouter();
-  const { authFetch, refreshOnboarding } = useAuth();
+  const { authFetch, refreshOnboarding, track } = useAuth();
 
   const [term, setTerm] = useState<string>("");
   const [elderName, setElderName] = useState<string>("");
@@ -77,6 +77,7 @@ export default function Consentimento() {
         body: JSON.stringify(body),
       });
       if (r.status !== 201 && !r.ok) throw new Error("falha");
+      track("consentimento_dado", { metodo: method });
       await refreshOnboarding?.();
       router.back();
     } catch {

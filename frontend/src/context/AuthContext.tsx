@@ -23,6 +23,8 @@ type AuthContextValue = {
   /** Papel do usuário no círculo: "coordenador" | "familiar". */
   role: string;
   isCoordinator: boolean;
+  /** Telemetria de produto (funil do beta). Fire-and-forget, sem PII de saúde. */
+  track: (event: string, props?: Record<string, string>) => void;
   refreshOnboarding: () => Promise<void>;
   loginWithGoogle: () => Promise<boolean>;
   logout: () => Promise<void>;
@@ -192,6 +194,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setNeedsOnboarding(null);
   }, [token]);
 
+  // Telemetria de produto: fire-and-forget, nunca bloqueia a UI, sem dado de saúde.
+  const track = useCallback((event: string, props: Record<string, string> = {}) => {
+    authFetch("/api/events", { method: "POST", body: JSON.stringify({ event, props }) }).catch(() => {});
+  }, [authFetch]);
+
   // Rechecagem após o onboarding concluir (a tela chama isso antes de entrar no app).
   const refreshOnboarding = useCallback(async () => {
     const t = token || (await readToken());
@@ -200,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, needsOnboarding, elderName, role, isCoordinator: role === "coordenador", refreshOnboarding, loginWithGoogle, logout, authFetch }}
+      value={{ user, token, loading, needsOnboarding, elderName, role, isCoordinator: role === "coordenador", track, refreshOnboarding, loginWithGoogle, logout, authFetch }}
     >
       {children}
     </AuthContext.Provider>

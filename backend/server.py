@@ -1887,6 +1887,53 @@ async def sos(authorization: Optional[str] = Header(None)):
         "home": {"lat": settings.get("home_lat"), "lng": settings.get("home_lng"), "address": settings.get("home_address")},
     }
 
+# ---------- Telemetria de produto (funil do beta) ----------
+# Eventos ficam no NOSSO Firestore (São Paulo). Nunca guardar PII de saúde nos props.
+ADMIN_EMAILS = set(
+    e.strip() for e in os.environ.get("ADMIN_EMAILS", "joaoschaun@gmail.com").split(",") if e.strip()
+)
+ALLOWED_EVENTS = {
+    "onboarding_iniciado", "onboarding_concluido", "consentimento_dado",
+    "convite_enviado", "convite_aceito", "cuidado_registrado", "sos_acionado", "app_aberto",
+}
+
+class EventIn(BaseModel):
+    event: str
+    props: Dict[str, str] = {}
+
+@api_router.post("/events", status_code=201)
+async def track_event(data: EventIn, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    if data.event not in ALLOWED_EVENTS:
+        raise HTTPException(status_code=400, detail="Evento não permitido.")
+    hh = await resolve_household(user)
+    # Sanitiza props: chaves/valores curtos, no máximo 10 — nunca dado de saúde.
+    props = {str(k)[:40]: str(v)[:80] for k, v in list(data.props.items())[:10]}
+    await db.events.insert_one({
+        "event": data.event,
+        "user_id": user["user_id"],
+        "household_owner_id": hh["owner_id"],
+        "role": hh["role"],
+        "props": props,
+        "ts": now_utc(),
+    })
+    return {"ok": True}
+
+@api_router.get("/admin/funnel")
+async def admin_funnel(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    if user.get("email") not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Acesso restrito.")
+    rows = await db.events.find({}, {"_id": 0}).to_list(5000)
+    counts: dict = {}
+    users_per_event: dict = {}
+    for r in rows:
+        ev = r.get("event")
+        counts[ev] = counts.get(ev, 0) + 1
+        users_per_event.setdefault(ev, set()).add(r.get("user_id"))
+    funnel = {ev: {"eventos": counts[ev], "usuarios": len(users_per_event[ev])} for ev in counts}
+    return {"funnel": funnel, "total_eventos": len(rows)}
+
 @api_router.get("/")
 async def root():
     return {"message": "Amparai API"}

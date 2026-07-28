@@ -20,7 +20,7 @@ const ROLES: { key: string; label: string; desc: string }[] = [
 ];
 
 export default function CirculoScreen() {
-  const { authFetch, user, isCoordinator } = useAuth();
+  const { authFetch, user, isCoordinator, track } = useAuth();
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +47,7 @@ export default function CirculoScreen() {
     try {
       await authFetch("/api/members", { method: "POST", body: JSON.stringify({ name: name.trim(), role, phone: phone.trim() || null }) });
       const inv = await authFetch("/api/invitations", { method: "POST", body: JSON.stringify({ name: name.trim(), role }) });
-      if (inv.ok) setInvite(await inv.json());
+      if (inv.ok) { setInvite(await inv.json()); track("convite_enviado", { papel: role }); }
       setName(""); setPhone("");
       setShowAdd(false);
       await load();

@@ -30,7 +30,7 @@ export default function AddCareModal({
   onSuccess,
   initialCategory = "medication",
 }: AddCareModalProps) {
-  const { authFetch } = useAuth();
+  const { authFetch, track } = useAuth();
   const [category, setCategory] = useState<CareCategory>(initialCategory);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +143,7 @@ export default function AddCareModal({
         if (!r.ok) throw new Error("Não foi possível salvar o plantão.");
       }
 
+      track("cuidado_registrado", { tipo: category });
       setSaving(false);
       resetForms();
       onSuccess();

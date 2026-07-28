@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -30,11 +30,13 @@ import { useAuth } from "@/src/context/AuthContext";
  */
 export default function Onboarding() {
   const router = useRouter();
-  const { user, authFetch, refreshOnboarding } = useAuth();
+  const { user, authFetch, refreshOnboarding, track } = useAuth();
   const [step, setStep] = useState(0);
   const [nickname, setNickname] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { track("onboarding_iniciado"); }, [track]);
 
   const firstName = (user?.name || "").split(" ")[0];
   const shownName = nickname.trim() || "ela";
@@ -48,6 +50,7 @@ export default function Onboarding() {
         body: JSON.stringify({ name: nickname.trim() }),
       });
       if (!r.ok) throw new Error("falha ao salvar");
+      track("onboarding_concluido");
       await refreshOnboarding?.();
       router.replace("/(tabs)/hoje");
     } catch {
