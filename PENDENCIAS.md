@@ -6,13 +6,14 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 
 ## 🛑 Blockers de Release (Críticos)
 
-### 📜 Revisão jurídica do termo de consentimento — [JURÍDICO] 🔴
-* O texto do termo (`CONSENT_TERM_TEXT`, versão `1.0-draft`) é rascunho e **não pode ir a
-  produção sem revisão do advogado** — falta amarrar transferência internacional (Gemini
-  fora do país) e salvaguardas de IA. Ver rascunho na seção 8 de
-  `ESPECIFICACAO_FASE9_CONSENTIMENTO.md`.
-* **Ação**: advogado revisa → atualizar o texto → bumpar a versão para `1.0` (força
-  reconsentimento) → só então deploy em produção real.
+*Nenhum blocker ativo.*
+
+### ✅ Termo de consentimento — aprovado pelo advogado e publicado (Sprint 2 #3)
+* Texto oficial **v1.0** no `CONSENT_TERM_TEXT` (com transferência internacional + salvaguardas
+  de IA amarradas); `CONSENT_TERM_VERSION = "1.0"`. Declaração de cuidador de fato validada.
+* Bump de versão força reconsentimento; a lógica de seed passou a garantir consentimento
+  **na versão vigente** (suíte não quebra na virada de versão).
+* Bases legais confirmadas: consentimento (app geral) + proteção da vida (SOS/pulseira).
 
 ---
 

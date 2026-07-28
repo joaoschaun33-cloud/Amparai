@@ -540,10 +540,9 @@ async def require_user(authorization: Optional[str]) -> dict:
         existing_elder = await db.elders.find_one({"owner_id": uid})
         if not existing_elder:
             await seed_family_for_user(uid)
-        # Garante consentimento para a conta de teste/demo — inclusive contas já criadas
-        # em execuções anteriores — para a suíte exercitar as rotas clínicas com o
-        # enforcement ligado.
-        if not await db.consents.find_one({"owner_id": uid}):
+        # Garante consentimento VIGENTE para a conta de teste/demo — inclusive quando a
+        # versão do termo muda (senão o enforcement passaria a bloquear e quebraria a suíte).
+        if not await db.consents.find_one({"owner_id": uid, "term_version": CONSENT_TERM_VERSION, "action": "accept"}):
             await db.consents.insert_one({
                 "consent_id": f"consent_{uuid.uuid4().hex[:10]}",
                 "owner_id": uid,
@@ -564,7 +563,7 @@ SEEDED_ACCOUNTS = {"test@amparai.com.br", "demo@amparai.com.br"}
 
 # Versão vigente do termo de consentimento. Se o texto mudar, incremente aqui — o log
 # guarda a versão exata aceita e o usuário é convidado a consentir de novo.
-CONSENT_TERM_VERSION = "1.0-draft"
+CONSENT_TERM_VERSION = "1.0"
 
 async def seed_family_for_user(user_id: str):
     existing = await db.elders.find_one({"owner_id": user_id})
@@ -886,21 +885,34 @@ async def weekly_summary(authorization: Optional[str] = Header(None)):
     return {"summary": text}
 
 # ---------- Consentimento (base legal para dados sensíveis) ----------
-# RASCUNHO — o texto final deve ser revisado pelo advogado antes de ir a produção
-# (transferência internacional / salvaguardas de IA a serem amarradas por ele).
+# Texto oficial v1.0 — aprovado pelo advogado (LGPD). Amarra transferência internacional
+# (IA operada pelo Google, fora do Brasil) e as salvaguardas de IA.
 CONSENT_TERM_TEXT = (
-    "No Amparai, o cuidado da sua mãe é organizado com carinho e responsabilidade. "
-    "Antes de guardar qualquer informação de saúde dela, queremos ser transparentes:\n\n"
-    "• O que guardamos: os dados de saúde e a rotina de cuidado da pessoa de quem você cuida.\n"
-    "• Para quê: apenas para ajudar a sua família a organizar o cuidado. Nunca vendemos "
-    "seus dados nem os usamos para publicidade.\n"
-    "• Quem vê: só quem a sua família convidar para o círculo de cuidado.\n"
-    "• Onde fica: em servidores no Brasil, com criptografia.\n"
-    "• Em uma emergência: dados essenciais podem ser usados para proteger a vida da "
-    "pessoa cuidada.\n"
-    "• Seus direitos: você pode ver, corrigir, exportar e apagar esses dados, e retirar "
-    "este consentimento a qualquer momento, com um toque.\n\n"
-    "Leia os detalhes completos na nossa Política de Privacidade e nos Termos de Uso."
+    "Termo de Privacidade e Cuidado Amparai\n\n"
+    "No Amparai, o cuidado de quem você ama é organizado com carinho, respeito e "
+    "responsabilidade. Antes de guardarmos qualquer informação sensível, queremos ser "
+    "totalmente transparentes sobre como protegemos a família:\n\n"
+    "• O que guardamos: dados sensíveis e de rotina da pessoa de quem você cuida (como "
+    "alergias, tipo sanguíneo, medicações, anotações do dia a dia), além de localização, "
+    "fotos e imagens de recibos de saúde.\n"
+    "• Para quê: exclusivamente para ajudar sua família a organizar a rotina de cuidado. "
+    "Nós nunca venderemos seus dados e não exibimos anúncios.\n"
+    "• Quem vê: apenas as pessoas que a sua família convidar para o \"círculo de cuidado\", "
+    "cada um respeitando o seu nível de acesso.\n"
+    "• Onde fica: seus dados ficam protegidos em servidores no Brasil, guardados com alta "
+    "criptografia.\n"
+    "• Inteligência Artificial e Processamento Seguro: usamos ferramentas de Inteligência "
+    "Artificial (operadas pelo Google) para facilitar a sua vida, como ler automaticamente a "
+    "foto de um recibo ou criar um resumo semanal da rotina. Para que isso funcione, esses "
+    "dados específicos podem ser processados em servidores fora do Brasil. Fique tranquilo: "
+    "garantimos que nenhuma informação da sua família será usada para treinar robôs ou "
+    "modelos públicos de inteligência artificial.\n"
+    "• Em caso de emergência: se houver risco à vida (como no acionamento do botão de SOS ou "
+    "na leitura da pulseira inteligente), a proteção da vida vem em primeiro lugar. Nesses "
+    "casos extremos, dados essenciais serão exibidos para quem prestar socorro.\n"
+    "• Seus direitos e controle: você está no comando. É possível ver, corrigir, exportar ou "
+    "apagar as informações pelo próprio aplicativo. Você também pode revogar (cancelar) este "
+    "consentimento a qualquer momento, com um simples toque."
 )
 
 VALID_CONSENT_METHODS = {"titular", "curatela", "cuidador_de_fato"}
