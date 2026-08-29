@@ -1,9 +1,7 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable, Platform, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, type, shadow } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
@@ -49,7 +47,7 @@ export default function Landing() {
 
         <Text style={styles.title}>Quem ama,{"\n"}ampara.</Text>
         <Text style={styles.subtitle}>
-          A sala de controle da família para cuidar da sua mãe com calma, junto com quem você ama.
+          Um lugar calmo para a família organizar o cuidado de quem ama.
         </Text>
 
         <View style={styles.pillars}>
@@ -57,7 +55,7 @@ export default function Landing() {
             <View style={[styles.pillarIcon, { backgroundColor: colors.olive }]}>
               <Ionicons name="shield-checkmark" size={18} color={colors.onOlive} />
             </View>
-            <Text style={styles.pillarText}>Proteger — sensor de porta, pulseira e localização.</Text>
+            <Text style={styles.pillarText}>Agir — emergência a um toque e informações importantes reunidas.</Text>
           </View>
           <View style={styles.pillar}>
             <View style={[styles.pillarIcon, { backgroundColor: colors.brand }]}>
@@ -90,7 +88,7 @@ export default function Landing() {
         </Pressable>
 
         <Text style={styles.footnote}>
-          Ao entrar, você começa a cuidar da Dona Maria com sua família.{"\n"}Seus dados são protegidos.
+          Ao entrar, você organiza o cuidado de quem você ama — junto com a família.{"\n"}Seus dados são protegidos.
         </Text>
       </ScrollView>
     </SafeAreaView>

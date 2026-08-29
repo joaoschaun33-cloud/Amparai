@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import type { ComponentProps } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, type, shadow } from "@/src/theme";
@@ -9,7 +10,8 @@ import { CardSkeleton } from "@/src/components/SkeletonLoader";
 
 type Event = { id: string; when: string; kind: string; title: string; detail: string; source: string };
 
-const kindIcon: Record<string, keyof typeof import("@expo/vector-icons/build/Ionicons").glyphMap> = {
+type IoniconName = ComponentProps<typeof Ionicons>["name"];
+const kindIcon: Record<string, IoniconName> = {
   pressao: "pulse-outline",
   audio: "mic-outline",
   observacao: "sparkles-outline",

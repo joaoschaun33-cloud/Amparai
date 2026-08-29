@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { colors, spacing, radius, type, shadow } from "@/src/theme";
+import { colors, spacing, radius, type } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
 
 /**

@@ -12,7 +12,7 @@ export default function ConvitePublic() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const router = useRouter();
   const { user, loading, authFetch, loginWithGoogle, refreshOnboarding, track } = useAuth();
-  const [info, setInfo] = useState<{ invitation: { name: string; role: string; owner_name?: string; accepted: boolean }; elder_name: string; owner_name?: string } | null>(null);
+  const [info, setInfo] = useState<{ invitation: { name: string; role: string; can_see_financeiro: boolean; accepted: boolean }; elder_name: string; owner_name?: string } | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +46,7 @@ export default function ConvitePublic() {
       setError("Não consegui entrar no círculo agora.");
     }
     setAccepting(false);
-  }, [authFetch, code, refreshOnboarding, router]);
+  }, [authFetch, code, refreshOnboarding, router, track]);
 
   const onCta = async () => {
     if (!user) { setPendingAccept(true); await loginWithGoogle(); return; }
@@ -90,13 +90,16 @@ export default function ConvitePublic() {
           <Text style={styles.bold}>{info.owner_name || "Um familiar"}</Text> convidou você para o <Text style={styles.bold}>círculo de cuidado de {info.elder_name}</Text> no Amparai.
         </Text>
         <Text style={styles.body}>
-          Aqui a família se organiza junta: escala, remédios, saúde e custos — sem grupo caótico de WhatsApp.
+          Aqui a família se organiza junta: escala, remédios e registros do cuidado — sem depender de mensagens espalhadas.
         </Text>
 
         <View style={styles.roleCard}>
           <Text style={styles.roleLabel}>Seu papel no círculo</Text>
           <Text style={styles.roleValue}>{roleName(info.invitation.role)}</Text>
           <Text style={styles.roleDesc}>{roleDesc(info.invitation.role)}</Text>
+          <Text style={styles.roleDesc}>
+            Custos: {info.invitation.can_see_financeiro ? "acesso permitido pela família" : "sem acesso neste convite"}.
+          </Text>
         </View>
 
         {error && <Text style={styles.error}>{error}</Text>}
@@ -120,17 +123,11 @@ export default function ConvitePublic() {
 }
 
 function roleName(r: string) {
-  if (r === "coordenador") return "Coordenador(a)";
-  if (r === "irmao") return "Irmão / irmã";
-  if (r === "cuidador") return "Cuidador(a)";
-  if (r === "profissional") return "Profissional de saúde";
+  if (r === "familiar") return "Familiar";
   return r;
 }
 function roleDesc(r: string) {
-  if (r === "coordenador") return "Você vê e decide tudo do cuidado.";
-  if (r === "irmao") return "Você acompanha a escala e divide os custos.";
-  if (r === "cuidador") return "Você registra remédios e confirma plantão.";
-  if (r === "profissional") return "Você acessa os dados clínicos e a linha do tempo de saúde.";
+  if (r === "familiar") return "Você acompanha e registra o cuidado, sem alterar a estrutura da família.";
   return "";
 }
 

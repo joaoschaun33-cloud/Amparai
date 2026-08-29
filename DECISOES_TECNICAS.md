@@ -54,3 +54,37 @@ Este documento registra as decisões de arquitetura e decisões de projeto tomad
   * *Firebase Hosting* ✅ escolhida: mesmo projeto `amparai-ce7f4`, SSL automático, CDN, tier grátis, e o domínio customizado entra automaticamente nos **domínios autorizados do Firebase Auth** (login web funciona sem passo extra).
 * **Decisão**: `firebase.json` ganhou bloco `hosting` (`public: frontend/dist`, rewrites SPA → `/index.html`); criado `.firebaserc` (projeto default `amparai-ce7f4`) e script `export:web`. Domínio: **apex + www** (`amparai.com.br` e `www.amparai.com.br`), DNS no **Registro.br**.
 * **Impacto**: Deploy do web com `expo export --platform web` + `firebase deploy --only hosting`. Sem custo recorrente relevante (tier grátis). Backend e mobile intocados.
+
+## 9. Isolamento obrigatório de autenticação e testes locais
+* **Contexto**: A suíte aceitava um bearer sintético em qualquer ambiente e usava o Cloud Run de produção como destino padrão, permitindo acesso indevido e escrita acidental em dados reais.
+* **Alternativas avaliadas**: manter a flag única `AMPARAI_TEST_MODE` (mudança menor, mas vulnerável a erro de configuração); substituir autenticação por dependency override nos testes (isolamento melhor, refatoração maior); exigir simultaneamente modo de teste + Firestore Emulator e bloquear Cloud Run (escolhida para contenção imediata).
+* **Decisão**: Bearers sintéticos só são reconhecidos quando `AMPARAI_TEST_MODE=1` e `FIRESTORE_EMULATOR_HOST` estão presentes. O backend falha ao iniciar com essas flags no Cloud Run. A suíte exige URL local explícita e falha antes da coleta em qualquer destino remoto.
+* **Impacto**: Nenhum teste legado pode mais usar produção. A suíte de integração passa a depender obrigatoriamente do ambiente local isolado descrito em `GUIA_STAGING.md`.
+
+## 10. Identidade confiável no cadastro de notificações
+* **Contexto**: O endpoint de push era público e aceitava `user_id` arbitrário no corpo, permitindo sobrescrever o destino de notificações de outra conta.
+* **Decisão**: O endpoint exige Firebase bearer válido e deriva o UID exclusivamente da identidade autenticada; o aplicativo não envia mais `user_id`.
+* **Impacto**: Fecha o IDOR sem alterar o fluxo visível para a família. Evolução para múltiplos dispositivos por usuário permanece fora desta fase.
+
+## 11. Evidência de contenção antes do piloto
+* **Data**: 24/08/2026.
+* **Decisão**: A contenção só foi considerada concluída após a suíte completa no Firestore Emulator (`50/50`), TypeScript e lint limpos, auditoria somente leitura da conta afetada e validação negativa na revisão Cloud Run `amparai-backend-00027-q8v`.
+* **Evidência**: tokens sintéticos e cadastro de push sem autenticação retornam 401 em produção; nenhuma flag de teste/emulador está configurada; rota raiz responde 200.
+* **Impacto**: A Fase 3 pode começar sobre uma base cuja barreira entre teste e produção foi demonstrada localmente e no serviço publicado.
+
+## 12. RBAC v1 — Familiar colaborativo com financeiro fechado
+* **Data**: 24/08/2026.
+* **Contexto**: A proposta original da Fase 10 sugeria Familiar somente leitura; a decisão posterior do fundador definiu que dividir o cuidado exige permitir ações operacionais. Ao mesmo tempo, custos e notas são dados familiares sensíveis e a matriz jurídica exige minimização.
+* **Alternativas avaliadas**: Familiar somente leitura (mais simples, enfraquece a promessa de colaboração); financeiro aberto para todos (menos fricção, expõe dados sem escolha); Familiar operacional com financeiro opt-in (escolhida, preserva colaboração e minimização).
+* **Decisão**: Novos convites oferecem apenas o papel implementado `familiar`. Ele pode registrar cuidado operacional, não executa governança e só acessa custos quando o Coordenador concede a permissão explicitamente, desativada por padrão. Cuidador e Profissional ficam fora da UI até o RBAC v2.
+* **Segurança do convite**: token aleatório de aproximadamente 128 bits, validade de 7 dias, uso único e resposta pública minimizada. Convite expirado ou aceito retorna indisponível sem revelar seus dados.
+* **Impacto**: A interface deixa de prometer papéis inexistentes e cada convite descreve fielmente o acesso concedido.
+* **Evidência de publicação**: revisão Cloud Run `amparai-backend-00028-r2s`; Firebase Hosting `amparai-app`; URLs oficial e `.web.app` respondendo 200.
+
+## 13. CI sem credenciais de produção e observabilidade minimizada
+* **Data**: 28/08/2026.
+* **Contexto**: Publicações manuais sem gates permitiam regressões; dar acesso de deploy ao primeiro pipeline criaria uma superfície de produção antes de existir staging remoto.
+* **Alternativas avaliadas**: CI com deploy direto (rápido, privilégio excessivo); apenas checks leves (barato, não prova integração); três gates isolados sem credenciais e deploy manual (escolhida).
+* **Decisão**: GitHub Actions valida frontend, unidade/segurança/container e integração completa no Firestore Emulator. O projeto de teste usa prefixo `demo-`, os testes rejeitam URL remota e o workflow recebe apenas `contents: read`.
+* **Observabilidade**: cada resposta recebe `X-Request-ID`; logs registram somente método, caminho, status e latência. Corpo, query string, token e conteúdo familiar não são registrados.
+* **Trade-off**: publicação continua manual até staging remoto existir; em troca, o CI não possui qualquer autoridade sobre GCP/Firebase.

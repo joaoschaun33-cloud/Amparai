@@ -104,7 +104,7 @@ export default function HojeScreen() {
             <Text style={styles.hello}>Olá, {firstName}</Text>
             <Text style={styles.date}>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}</Text>
           </View>
-          <Pressable onPress={() => router.push("/conta")} testID="conta-button" hitSlop={12}>
+          <Pressable onPress={() => router.push("/conta" as any)} testID="conta-button" hitSlop={12}>
             <Ionicons name="settings-outline" size={22} color={colors.onSurfaceSoft} />
           </Pressable>
         </View>
@@ -173,7 +173,7 @@ export default function HojeScreen() {
             <ChecklistItem
               done={onboarding.steps.consent}
               label="Autorizar o uso dos dados de saúde"
-              onPress={() => router.push("/consentimento")}
+              onPress={() => router.push("/consentimento" as any)}
               testID="step-consent"
             />
             <ChecklistItem
@@ -369,7 +369,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 6,
     ...shadow.card,
   },
 

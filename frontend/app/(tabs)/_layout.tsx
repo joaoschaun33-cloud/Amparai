@@ -1,9 +1,9 @@
 import React from "react";
 import { Tabs, useRouter } from "expo-router";
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, type, radius, spacing, shadow } from "@/src/theme";
+import { colors, type, radius, shadow } from "@/src/theme";
 
 function TabIcon({ name, focused }: { name: keyof typeof Ionicons.glyphMap; focused: boolean }) {
   return (

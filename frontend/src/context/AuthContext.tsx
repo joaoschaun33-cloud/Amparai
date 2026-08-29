@@ -7,7 +7,6 @@ import { configureGoogleSignIn, signInWithGoogleNative } from '@/src/utils/googl
 import { auth } from '@/src/utils/firebase';
 
 const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL;
-const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 const TOKEN_KEY = 'amparai_session_token';
 
 type User = { user_id: string; email: string; name: string; picture?: string | null };
@@ -55,7 +54,7 @@ async function clearToken() {
   }
 }
 
-async function registerForPush(user_id: string) {
+async function registerForPush(authToken: string) {
   if (Platform.OS === 'web') return;
   try {
     const perm = await Notifications.requestPermissionsAsync();
@@ -63,9 +62,11 @@ async function registerForPush(user_id: string) {
     const tokenResp = await Notifications.getDevicePushTokenAsync();
     await fetch(`${BACKEND}/api/register-push`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
       body: JSON.stringify({
-        user_id,
         platform: Platform.OS,
         device_token: tokenResp.data,
       }),
@@ -125,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await r.json();
         setUser(data);
         setToken(t);
-        registerForPush(data.user_id).catch(() => {});
+        registerForPush(t).catch(() => {});
         await checkOnboarding(t);
         return true;
       }

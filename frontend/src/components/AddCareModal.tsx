@@ -12,7 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing, radius, type, shadow } from "@/src/theme";
+import { colors, spacing, radius, type } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
 
 export type CareCategory = "medication" | "event" | "appointment" | "shift";

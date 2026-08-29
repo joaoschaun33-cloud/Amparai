@@ -6,6 +6,8 @@ import os
 import logging
 import contextvars
 import uuid
+import secrets
+import time
 import httpx
 import base64
 import math
@@ -20,16 +22,27 @@ from google.oauth2 import service_account
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+if os.environ.get("K_SERVICE") and (
+    os.environ.get("AMPARAI_TEST_MODE") == "1"
+    or os.environ.get("FIRESTORE_EMULATOR_HOST")
+):
+    raise RuntimeError("Configuração de teste/emulador proibida no Cloud Run.")
 load_dotenv(ROOT_DIR.parent / '.env')  # chaves de IA no .env da raiz do repo
 
 import firebase_admin
 from firebase_admin import credentials, auth, firestore, messaging
 
 cred_path = ROOT_DIR / "service-account-key.json"
-if cred_path.exists():
+if os.environ.get("FIRESTORE_EMULATOR_HOST"):
+    # Ambiente de teste local (emulador): sem credencial real, projeto explícito.
+    # NÃO afeta produção — no Cloud Run FIRESTORE_EMULATOR_HOST nunca é setado.
+    firebase_admin.initialize_app(options={"projectId": os.environ.get("GOOGLE_CLOUD_PROJECT", "amparai-ce7f4")})
+elif cred_path.exists():
     cred = credentials.Certificate(str(cred_path))
     firebase_admin.initialize_app(cred)
 else:
+    # Produção (Cloud Run): Application Default Credentials via metadata server.
     firebase_admin.initialize_app()
 
 db_fs = firestore.client()
@@ -485,19 +498,31 @@ async def require_user(authorization: Optional[str]) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Unauthorized")
     token = authorization.split(" ", 1)[1]
-    path = request_path_var.get()
-    if path != "/api/auth/me" and token == "test_bearer_token_abc":
+    test_mode = (
+        os.environ.get("AMPARAI_TEST_MODE") == "1"
+        and bool(os.environ.get("FIRESTORE_EMULATOR_HOST"))
+    )
+    # O teste de logout prova o 401 em /auth/me; a próxima verificação local começa limpa.
+    # Esta restauração é impossível fora do emulador pelas duas condições acima.
+    if test_mode and request_path_var.get() != "/api/auth/me":
         blacklisted_tokens.discard(token)
     if token in blacklisted_tokens:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    _test_tokens = {}
+    if test_mode:
+        _test_tokens = {
+            "test_bearer_token_abc": {
+                "uid": "user_test123", "email": "test@amparai.com.br",
+                "name": "Dona Maria", "picture": None,
+            },
+            "test_bearer_token_fam": {
+                "uid": "user_testfam456", "email": "familiar.test@amparai.com.br",
+                "name": "Camila (familiar de teste)", "picture": None,
+            },
+        }
     try:
-        if token == "test_bearer_token_abc":
-            decoded_token = {
-                "uid": "user_test123",
-                "email": "test@amparai.com.br",
-                "name": "Dona Maria",
-                "picture": None
-            }
+        if token in _test_tokens:
+            decoded_token = dict(_test_tokens[token])
         else:
             decoded_token = auth.verify_id_token(token)
     except Exception as e:
@@ -695,6 +720,7 @@ class ShiftIn(BaseModel):
 async def create_medication(data: MedicationIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     hh = await resolve_household(user)
+    await require_valid_consent(hh["owner_id"])
     med_id = f"med_{uuid.uuid4().hex[:8]}"
     item = {
         "id": med_id,
@@ -720,6 +746,7 @@ async def create_medication(data: MedicationIn, authorization: Optional[str] = H
 async def create_health_event(data: HealthEventIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     hh = await resolve_household(user)
+    await require_valid_consent(hh["owner_id"])
     event_id = f"evt_{uuid.uuid4().hex[:8]}"
     when_str = data.when.strip() if (data.when and data.when.strip()) else datetime.now(timezone.utc).strftime("%H:%M")
     item = {
@@ -747,6 +774,7 @@ async def create_health_event(data: HealthEventIn, authorization: Optional[str] 
 async def create_appointment(data: AppointmentIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     hh = await resolve_household(user)
+    await require_valid_consent(hh["owner_id"])
     appt_id = f"appt_{uuid.uuid4().hex[:8]}"
     item = {
         "id": appt_id,
@@ -809,10 +837,9 @@ async def get_saude(authorization: Optional[str] = Header(None)):
 async def get_custos(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     hh = await resolve_household(user)
-    # Financeiro é VISÍVEL a todos do círculo: a transparência do rateio é o que gera a
-    # cobrança social e desonera o Coordenador de ser o "cobrador". (A trava por permissão
-    # vale só para os papéis da v2 — Cuidador/Profissional.)
-    if hh["role"] in ("cuidador", "profissional") and not hh["can_see_financeiro"]:
+    # Minimização: qualquer pessoa que não seja Coordenador só vê custos quando a
+    # permissão foi concedida explicitamente no convite.
+    if hh["role"] != "coordenador" and not hh["can_see_financeiro"]:
         raise HTTPException(status_code=403, detail="Sem acesso ao financeiro deste círculo.")
     expenses = await db.expenses.find({"owner_id": hh["owner_id"]}, {"_id": 0, "owner_id": 0}).to_list(100)
     total = sum(e["amount"] for e in expenses)
@@ -935,6 +962,16 @@ async def get_consent_status(uid: str) -> dict:
                 "at": at.isoformat() if isinstance(at, datetime) else at,
             }
     return {"consented": False, "method": None, "term_version": CONSENT_TERM_VERSION, "at": None}
+
+
+async def require_valid_consent(owner_id: str) -> None:
+    """Porta única para novas coletas e transferências de dados sensíveis."""
+    status = await get_consent_status(owner_id)
+    if not status["consented"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Consentimento necessário antes de registrar dados sensíveis.",
+        )
 
 
 class ConsentIn(BaseModel):
@@ -1117,12 +1154,7 @@ async def update_clinico(data: ClinicalData, authorization: Optional[str] = Head
     hh = await resolve_household(user)
     require_coordinator(hh)
     # Porta legal: nenhum dado de saúde é gravado sem consentimento válido e vigente.
-    status = await get_consent_status(hh["owner_id"])
-    if not status["consented"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Consentimento necessário antes de registrar dados de saúde.",
-        )
+    await require_valid_consent(hh["owner_id"])
     payload = data.model_dump()
     await db.clinical.update_one(
         {"owner_id": hh["owner_id"]},
@@ -1199,7 +1231,7 @@ async def onboarding_status(authorization: Optional[str] = Header(None)):
 # ---------- Círculo (members + invitations) ----------
 class MemberIn(BaseModel):
     name: str
-    role: str  # "coordenador" | "irmao" | "cuidador" | "profissional"
+    role: str  # novos membros: "familiar"; papéis v2 ainda não são oferecidos
     phone: Optional[str] = None
     email: Optional[str] = None
 
@@ -1219,7 +1251,7 @@ async def resolve_household(user: dict) -> dict:
     return {"owner_id": uid, "role": "coordenador", "can_see_financeiro": True, "can_see_notas": True}
 
 def require_coordinator(hh: dict):
-    # v1: só o Coordenador escreve. Familiar é leitura.
+    # Governança é exclusiva do Coordenador; ações operacionais têm regras próprias.
     if hh["role"] != "coordenador":
         raise HTTPException(status_code=403, detail="Apenas o coordenador do cuidado pode fazer isso.")
 
@@ -1235,13 +1267,14 @@ async def add_member(data: MemberIn, authorization: Optional[str] = Header(None)
     user = await require_user(authorization)
     hh = await resolve_household(user)
     require_coordinator(hh)
+    role = validate_circle_role(data.role)
     mid = f"mem_{uuid.uuid4().hex[:10]}"
     avatar = (data.name.strip()[:1] or "?").upper()
     doc = {
         "owner_id": hh["owner_id"],
         "id": mid,
         "name": data.name,
-        "role": data.role,
+        "role": role,
         "phone": data.phone,
         "email": data.email,
         "avatar": avatar,
@@ -1249,7 +1282,7 @@ async def add_member(data: MemberIn, authorization: Optional[str] = Header(None)
     }
     await db.members.insert_one(doc)
     return {
-        "id": mid, "name": data.name, "role": data.role,
+        "id": mid, "name": data.name, "role": role,
         "phone": data.phone, "email": data.email, "avatar": avatar,
     }
 
@@ -1267,18 +1300,40 @@ class InviteIn(BaseModel):
     can_see_financeiro: bool = False  # padrão fechado (LGPD/minimização)
     can_see_notas: bool = False
 
+
+SUPPORTED_CIRCLE_ROLE = "familiar"
+
+
+def validate_circle_role(role: str) -> str:
+    if role != SUPPORTED_CIRCLE_ROLE:
+        raise HTTPException(
+            status_code=400,
+            detail="Nesta versão, novos convites podem usar apenas o papel Familiar.",
+        )
+    return role
+
+
+def invitation_expired(inv: dict) -> bool:
+    expires_at = inv.get("expires_at")
+    if not isinstance(expires_at, datetime):
+        return True
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at <= now_utc()
+
 @api_router.post("/invitations")
 async def create_invitation(data: InviteIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     hh = await resolve_household(user)
     require_coordinator(hh)
-    code = uuid.uuid4().hex[:8].upper()
+    role = validate_circle_role(data.role)
+    code = secrets.token_urlsafe(16)
     inv = {
         "owner_id": hh["owner_id"],
         "owner_name": user["name"],
         "code": code,
         "name": data.name,
-        "role": data.role,
+        "role": role,
         "can_see_financeiro": data.can_see_financeiro,
         "can_see_notas": data.can_see_notas,
         "accepted": False,
@@ -1286,7 +1341,7 @@ async def create_invitation(data: InviteIn, authorization: Optional[str] = Heade
         "expires_at": now_utc() + timedelta(days=7),
     }
     await db.invitations.insert_one(inv)
-    return {"code": code, "name": data.name, "role": data.role, "invite_url": f"/convite/{code}"}
+    return {"code": code, "name": data.name, "role": role, "invite_url": f"/convite/{code}"}
 
 @api_router.post("/invitations/{code}/accept")
 async def accept_invitation(code: str, authorization: Optional[str] = Header(None)):
@@ -1297,6 +1352,8 @@ async def accept_invitation(code: str, authorization: Optional[str] = Header(Non
         raise HTTPException(status_code=404, detail="Convite não encontrado.")
     if inv.get("accepted"):
         raise HTTPException(status_code=409, detail="Este convite já foi aceito.")
+    if invitation_expired(inv):
+        raise HTTPException(status_code=410, detail="Este convite expirou. Peça um novo à família.")
     if inv["owner_id"] == uid:
         raise HTTPException(status_code=400, detail="Você não pode aceitar o próprio convite.")
     # Uma família por usuário na v1: não pode já pertencer a outra nem ter a própria.
@@ -1309,7 +1366,7 @@ async def accept_invitation(code: str, authorization: Optional[str] = Header(Non
         "household_owner_id": inv["owner_id"],
         "member_uid": uid,
         "member_name": user.get("name"),
-        "role": "familiar",  # v1 só liga acesso para Familiar
+        "role": SUPPORTED_CIRCLE_ROLE,
         "can_see_financeiro": bool(inv.get("can_see_financeiro")),
         "can_see_notas": bool(inv.get("can_see_notas")),
         "invited_by": inv["owner_id"],
@@ -1319,22 +1376,27 @@ async def accept_invitation(code: str, authorization: Optional[str] = Header(Non
         {"code": code},
         {"$set": {"accepted": True, "accepted_by": uid, "accepted_at": now_utc()}},
     )
-    return {"ok": True, "household_owner_id": inv["owner_id"], "role": "familiar"}
+    return {"ok": True, "household_owner_id": inv["owner_id"], "role": SUPPORTED_CIRCLE_ROLE}
 
 @api_router.get("/invitations/{code}")
 async def get_invitation(code: str):
     inv = await db.invitations.find_one({"code": code}, {"_id": 0})
     if not inv:
         raise HTTPException(status_code=404, detail="Convite não encontrado")
+    if inv.get("accepted") or invitation_expired(inv):
+        raise HTTPException(status_code=410, detail="Este convite não está mais disponível.")
     owner_id = inv.get("owner_id")
     elder = await db.elders.find_one({"owner_id": owner_id}, {"_id": 0, "owner_id": 0}) if owner_id else None
     coord = await db.users.find_one({"user_id": owner_id}, {"_id": 0}) if owner_id else None
-    owner_name = coord.get("name") if coord else "Um familiar"
-    inv_copy = dict(inv)
-    inv_copy.pop("owner_id", None)
+    owner_name = (coord.get("name", "").split()[0] if coord else None) or "Um familiar"
     return {
-        "invitation": inv_copy,
-        "elder_name": elder["name"] if elder else "sua família",
+        "invitation": {
+            "name": inv.get("name", "").split()[0],
+            "role": SUPPORTED_CIRCLE_ROLE,
+            "can_see_financeiro": bool(inv.get("can_see_financeiro")),
+            "accepted": False,
+        },
+        "elder_name": get_elder_display_name(elder) if elder else "sua família",
         "owner_name": owner_name,
     }
 
@@ -1367,6 +1429,8 @@ class OcrIn(BaseModel):
 @api_router.post("/ocr/receipt")
 async def ocr_receipt(payload: OcrIn, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)  # qualquer membro pode ler um recibo para lançar despesa
+    hh = await resolve_household(user)
+    await require_valid_consent(hh["owner_id"])
     img = payload.image_base64
     if img.startswith("data:"):
         img = img.split(",", 1)[1]
@@ -1503,15 +1567,15 @@ async def list_scans(elder_id: str, authorization: Optional[str] = Header(None))
 
 # ---------- Push register + send_push helper ----------
 class RegisterPushBody(BaseModel):
-    user_id: str
     platform: str
     device_token: str
 
 @api_router.post("/register-push", status_code=201)
-async def register_push(body: RegisterPushBody):
+async def register_push(body: RegisterPushBody, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
     try:
         await db.device_tokens.update_one(
-            {"user_id": body.user_id},
+            {"user_id": user["user_id"]},
             {"$set": {"device_token": body.device_token, "platform": body.platform, "updated_at": datetime.now(timezone.utc)}},
             upsert=True
         )
@@ -1705,6 +1769,7 @@ class LocationPing(BaseModel):
 async def location_ping(body: LocationPing, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     hh = await resolve_household(user)
+    await require_valid_consent(hh["owner_id"])
     doc = {
         "owner_id": hh["owner_id"],
         "id": f"ping_{uuid.uuid4().hex[:10]}",
@@ -1938,13 +2003,50 @@ async def admin_funnel(authorization: Optional[str] = Header(None)):
 async def root():
     return {"message": "Amparai API"}
 
+
+@api_router.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "revision": os.environ.get("K_REVISION", "local"),
+    }
+
 app.include_router(api_router)
 
 @app.middleware("http")
 async def set_request_path(request: Request, call_next):
-    request_path_var.set(request.url.path)
-    response = await call_next(request)
-    return response
+    started = time.perf_counter()
+    incoming_id = request.headers.get("x-request-id", "")
+    request_id = incoming_id if (
+        1 <= len(incoming_id) <= 64
+        and all(char.isalnum() or char in "-_" for char in incoming_id)
+    ) else uuid.uuid4().hex
+    context_token = request_path_var.set(request.url.path)
+    try:
+        response = await call_next(request)
+        duration_ms = round((time.perf_counter() - started) * 1000, 1)
+        logging.info(
+            "http_request request_id=%s method=%s path=%s status=%s duration_ms=%s",
+            request_id,
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+        )
+        response.headers["X-Request-ID"] = request_id
+        return response
+    except Exception:
+        duration_ms = round((time.perf_counter() - started) * 1000, 1)
+        logging.exception(
+            "http_request_failed request_id=%s method=%s path=%s duration_ms=%s",
+            request_id,
+            request.method,
+            request.url.path,
+            duration_ms,
+        )
+        raise
+    finally:
+        request_path_var.reset(context_token)
 
 # CORS restrito às origens reais do produto (app de saúde — sem wildcard).
 ALLOWED_ORIGINS = [
@@ -1962,6 +2064,7 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

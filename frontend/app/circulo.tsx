@@ -7,26 +7,23 @@ import * as Clipboard from "expo-clipboard";
 import { colors, spacing, radius, type, shadow } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
 
-const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL;
-
 type Member = { id: string; name: string; role: string; phone?: string; email?: string; avatar: string };
 type Invite = { code: string; name: string; role: string; invite_url: string };
 
 const ROLES: { key: string; label: string; desc: string }[] = [
-  { key: "coordenador", label: "Coordenador(a)", desc: "vê tudo, decide, cobra" },
-  { key: "irmao", label: "Irmão / irmã", desc: "escala e custos" },
-  { key: "cuidador", label: "Cuidador(a)", desc: "só remédios e escala" },
-  { key: "profissional", label: "Profissional de saúde", desc: "só dados clínicos" },
+  { key: "coordenador", label: "Coordenador(a)", desc: "organiza o círculo" },
+  { key: "familiar", label: "Familiar", desc: "acompanha e registra o cuidado" },
 ];
 
 export default function CirculoScreen() {
-  const { authFetch, user, isCoordinator, track } = useAuth();
+  const { authFetch, user, isCoordinator, track, elderName } = useAuth();
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
-  const [role, setRole] = useState("irmao");
+  const role = "familiar";
+  const [canSeeFinanceiro, setCanSeeFinanceiro] = useState(false);
   const [phone, setPhone] = useState("");
   const [invite, setInvite] = useState<Invite | null>(null);
 
@@ -46,9 +43,9 @@ export default function CirculoScreen() {
     if (!name.trim()) return;
     try {
       await authFetch("/api/members", { method: "POST", body: JSON.stringify({ name: name.trim(), role, phone: phone.trim() || null }) });
-      const inv = await authFetch("/api/invitations", { method: "POST", body: JSON.stringify({ name: name.trim(), role }) });
+      const inv = await authFetch("/api/invitations", { method: "POST", body: JSON.stringify({ name: name.trim(), role, can_see_financeiro: canSeeFinanceiro }) });
       if (inv.ok) { setInvite(await inv.json()); track("convite_enviado", { papel: role }); }
-      setName(""); setPhone("");
+      setName(""); setPhone(""); setCanSeeFinanceiro(false);
       setShowAdd(false);
       await load();
     } catch {}
@@ -64,7 +61,8 @@ export default function CirculoScreen() {
     // O link abre o APP (rota /convite/[code]), nunca o backend.
     const APP_URL = process.env.EXPO_PUBLIC_APP_URL || "https://app.amparai.com.br";
     const link = `${APP_URL}/convite/${invite.code}`;
-    const msg = `Oi ${invite.name}! ${user?.name?.split(" ")[0] || ""} te convidou pro círculo de cuidado da mamãe no Amparai 💛\n\nCódigo: ${invite.code}\n${link}`;
+    const quem = (elderName || "").trim() || "quem a gente ama";
+    const msg = `Oi ${invite.name}! ${user?.name?.split(" ")[0] || ""} te convidou pro círculo de cuidado de ${quem} no Amparai 💛\n\nCódigo: ${invite.code}\n${link}`;
     try {
       await Share.share({ message: msg });
     } catch {}
@@ -159,22 +157,27 @@ export default function CirculoScreen() {
             />
 
             <Text style={styles.roleLabel}>Papel no círculo</Text>
-            {ROLES.map((r) => (
-              <Pressable
-                key={r.key}
-                testID={`role-${r.key}`}
-                onPress={() => setRole(r.key)}
-                style={[styles.roleRow, role === r.key && styles.roleRowActive]}
-              >
-                <View style={[styles.radio, role === r.key && styles.radioActive]}>
-                  {role === r.key && <View style={styles.radioInner} />}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.roleName}>{r.label}</Text>
-                  <Text style={styles.roleDesc}>{r.desc}</Text>
-                </View>
-              </Pressable>
-            ))}
+            <View style={[styles.roleRow, styles.roleRowActive]}>
+              <View style={[styles.radio, styles.radioActive]}><View style={styles.radioInner} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.roleName}>Familiar</Text>
+                <Text style={styles.roleDesc}>Acompanha e registra o cuidado. Não altera a estrutura da família.</Text>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={() => setCanSeeFinanceiro((current) => !current)}
+              style={styles.permissionRow}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: canSeeFinanceiro }}
+              testID="permission-financeiro"
+            >
+              <Ionicons name={canSeeFinanceiro ? "checkbox" : "square-outline"} size={24} color={colors.brand} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.roleName}>Permitir acesso aos custos</Text>
+                <Text style={styles.roleDesc}>Fica desativado por padrão e pode ser concedido pela família.</Text>
+              </View>
+            </Pressable>
 
             <View style={styles.modalActions}>
               <Pressable onPress={() => setShowAdd(false)} style={styles.btnGhost}><Text style={styles.btnGhostText}>Cancelar</Text></Pressable>
@@ -246,6 +249,7 @@ const styles = StyleSheet.create({
   radioInner: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: colors.brand },
   roleName: { fontFamily: type.sans, fontSize: 15, color: colors.onSurface, fontWeight: "600" },
   roleDesc: { fontFamily: type.sans, fontSize: 12, color: colors.onSurfaceSoft, marginTop: 2 },
+  permissionRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceTertiary },
   modalActions: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
   btnGhost: { flex: 1, paddingVertical: 14, alignItems: "center", borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border },
   btnGhostText: { fontFamily: type.sans, fontSize: 15, color: colors.onSurface, fontWeight: "600" },

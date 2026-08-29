@@ -20,8 +20,7 @@ import { useAuth } from "@/src/context/AuthContext";
  * Onboarding — primeiro acesso.
  *
  * Três momentos, um único formulário:
- *  1. Acolhimento  — nomeia a solidão do cuidado e derruba a objeção "minha mãe vai ter
- *                    que aprender a usar isso?".
+ *  1. Acolhimento  — nomeia a solidão do cuidado e explica quem usa o app.
  *  2. Ela          — o único campo obrigatório do app: como a família a chama.
  *  3. A promessa   — mostra (rotulado como exemplo) como será o dia a dia, para que a
  *                    conta nova não caia num app vazio sem entender o valor.
@@ -93,7 +92,7 @@ export default function Onboarding() {
               <View style={styles.noteCard}>
                 <Ionicons name="information-circle" size={20} color={colors.olive} />
                 <Text style={styles.noteText}>
-                  A sua mãe não precisa instalar nem aprender nada. O app é de vocês.
+                  A pessoa que recebe o cuidado não precisa usar o app. Ele foi feito para a família se organizar.
                 </Text>
               </View>
 
@@ -131,7 +130,7 @@ export default function Onboarding() {
               <View style={styles.privacyCard}>
                 <Ionicons name="lock-closed" size={18} color={colors.brand} />
                 <Text style={styles.privacyText}>
-                  O que você guardar aqui é da sua família. Ninguém mais vê.
+                  A família escolhe quem entra no círculo. Alguns recursos usam serviços protegidos para processar informações, conforme o consentimento e a Política de Privacidade.
                 </Text>
               </View>
 
@@ -155,8 +154,7 @@ export default function Onboarding() {
             <View style={styles.block} testID="onboarding-step-promise">
               <Text style={styles.title}>É assim que vai ser.</Text>
               <Text style={styles.body}>
-                Todo dia, em três segundos, você vai saber que está tudo bem — sem abrir
-                planilha e sem cobrar ninguém.
+                Em poucos segundos, você vê o que a família registrou e o que ainda precisa de atenção — sem depender de planilhas.
               </Text>
 
               {/* Ilustração — NÃO é dado real, e está rotulada como exemplo. */}
@@ -167,8 +165,8 @@ export default function Onboarding() {
                     <Ionicons name="person" size={22} color={colors.onOlive} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.statusTitle}>Tudo bem com {shownName}</Text>
-                    <Text style={styles.statusSub}>Última confirmação: 20h</Text>
+                    <Text style={styles.statusTitle}>Registros de {shownName} em dia</Text>
+                    <Text style={styles.statusSub}>Último registro da família: 20h</Text>
                   </View>
                 </View>
               </View>

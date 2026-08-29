@@ -20,9 +20,7 @@ import os
 import base64
 import pytest
 
-BASE_URL = os.environ.get(
-    "EXPO_PUBLIC_BACKEND_URL", "https://amparai-backend-750186946997.southamerica-east1.run.app"
-).rstrip("/")
+BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/")
 TEST_BEARER = "test_bearer_token_abc"
 FORBIDDEN_WORDS = ["paciente", "idoso", "monitorar", "rastrear", "vigiar", "ALERTA", "anomalia"]
 
@@ -125,13 +123,13 @@ class TestMembers:
     def test_add_and_delete_member(self, auth_client):
         r = auth_client.post(
             f"{BASE_URL}/api/members",
-            json={"name": "TEST_Bruno", "role": "irmao"},
+            json={"name": "TEST_Bruno", "role": "familiar"},
         )
         assert r.status_code == 200
         d = r.json()
         assert d["id"].startswith("mem_")
         assert d["name"] == "TEST_Bruno"
-        assert d["role"] == "irmao"
+        assert d["role"] == "familiar"
         mem_id = d["id"]
 
         # Verify present
@@ -154,14 +152,12 @@ class TestInvitations:
     def test_create_and_public_fetch(self, auth_client, api_client):
         r = auth_client.post(
             f"{BASE_URL}/api/invitations",
-            json={"name": "TEST_Bruno", "role": "irmao"},
+            json={"name": "TEST_Bruno", "role": "familiar"},
         )
         assert r.status_code == 200
         d = r.json()
         code = d["code"]
-        assert isinstance(code, str) and len(code) == 8
-        # Must be uppercase hex
-        assert all(c in "0123456789ABCDEF" for c in code), f"invalid hex code: {code}"
+        assert isinstance(code, str) and len(code) >= 20
         assert d["invite_url"].endswith(f"/convite/{code}")
 
         # Public GET (no auth header)
@@ -169,7 +165,8 @@ class TestInvitations:
         assert r2.status_code == 200
         d2 = r2.json()
         assert "invitation" in d2
-        assert d2["invitation"]["code"] == code
+        assert set(d2["invitation"]) == {"name", "role", "can_see_financeiro", "accepted"}
+        assert d2["invitation"]["role"] == "familiar"
         assert d2.get("elder_name")  # non-empty
 
     def test_public_fetch_unknown_returns_404(self, api_client):

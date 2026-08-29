@@ -6,7 +6,28 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 
 ## 🛑 Blockers de Release (Críticos)
 
-*Nenhum blocker ativo.*
+### 🟡 Fase 4 — CI implementado, proteção da branch pendente (28/08/2026)
+* Workflow com três gates: frontend; backend unitário/segurança/container; integração no
+  Firestore Emulator. Execução local do novo script: **52/52 testes passando**.
+* Healthcheck e correlação por `X-Request-ID`; logs sem corpo, query ou dados familiares.
+* **Pendente:** enviar os arquivos ao GitHub, observar o primeiro workflow verde e então
+  habilitar proteção de `main` exigindo os três checks. Deploy permanece manual.
+
+### ✅ Fase 3 — verdade, papéis e acesso publicada (24/08/2026)
+* Novos convites limitados ao papel Familiar realmente implementado; financeiro fechado por
+  padrão e liberado somente por escolha explícita do Coordenador.
+* Convites com token forte, expiração efetiva, uso único e resposta pública minimizada.
+* Textos de entrada não prometem sigilo absoluto nem certeza sobre o bem-estar.
+* Evidência: **51/51 testes de integração**, 5/5 unitários, TypeScript e lint aprovados.
+* Produção: backend `amparai-backend-00028-r2s` com 100% do tráfego; app web publicado em
+  `amparai-app.web.app` e `app.amparai.com.br`, ambos respondendo 200.
+
+### ✅ Contenção validada no Cloud Run (24/08/2026)
+* Java 21 instalado; Firestore Emulator executado no projeto demo isolado; suíte completa:
+  **50/50 testes passando**. TypeScript e lint também passam sem erros ou avisos.
+* Revisão `amparai-backend-00027-q8v` publicada em `southamerica-east1` com 100% do tráfego.
+  Token sintético → 401; push sem bearer → 401; push com token sintético → 401; `/api/` → 200.
+  `AMPARAI_TEST_MODE` e `FIRESTORE_EMULATOR_HOST` ausentes no serviço.
 
 ### ✅ Termo de consentimento — aprovado pelo advogado e publicado (Sprint 2 #3)
 * Texto oficial **v1.0** no `CONSENT_TERM_TEXT` (com transferência internacional + salvaguardas
@@ -38,15 +59,22 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 * Endpoint de demo que semeava pings "Dona Maria saiu de casa". Agora responde 403 para
   conta real (só funciona em conta de demonstração).
 
-### 🔴 F4. Limpar resíduo da conta de teste `joaoschaun33@gmail.com`
-* Essa conta abriu a tela clínica **antes** do fix F1, então tem o prontuário falso gravado
-  no Firestore. **Ação**: apagar o documento dela na coleção `clinical` (e conferir `elders`)
-  para um reteste limpo.
+### ✅ F4. Conta `joaoschaun33@gmail.com` auditada — nenhuma exclusão necessária (24/08/2026)
+* Inventário somente leitura confirmou: **0 documentos em `clinical`** e nenhum marcador
+  fictício conhecido nas coleções da conta. O cadastro existente e dois convites não têm
+  marcadores de seed e foram preservados como potencialmente legítimos.
+* Evidência reproduzível: `backend/audit_account_data.py`. Nenhum dado foi apagado.
 
-### 🟡 F5. Auditoria completa de fabricação de dados
-* F1–F3 foram achados por amostragem. Falta uma varredura sistemática de todas as rotas de
-  leitura em busca de outros defaults/fallbacks hardcoded (ex.: mensagens de push com "Dona
-  Maria", `circle_notified` "todos avisados").
+### ✅ F5. Auditoria completa de fabricação de dados (varredura final — 29/07/2026)
+* Varredura sistemática (`git grep`) de todo o backend e frontend por nomes/dados fictícios.
+* **Backend limpo**: todo marcador ("Dona Maria", Losartana, Dr. Ricardo, Rua das Acácias,
+  circle_notified etc.) está dentro de `seed_family_for_user` ou de branches protegidos
+  (`if email in SEEDED_ACCOUNTS`, `if is_seeded`, `simulate` com 403) — **inalcançável por
+  conta real**. O `test_bearer_token_abc` decodifica "Dona Maria" só na conta de teste.
+* **Frontend corrigido**: `index.tsx` (tela de login) mostrava "Dona Maria" para todo usuário
+  novo → trocado por texto genérico; `circulo.tsx` fixava "mamãe" na mensagem de convite →
+  passa a usar o nome real (`elderName`). Placeholders ("Ex: Losartana", "Mãe, Dona Maria…")
+  são ilustrativos e permanecem.
 
 ### 🟡 F6. UX de salvamento no perfil clínico
 * A tela clínica salva automaticamente ao sair, sem botão nem confirmação. Em dado sensível,
@@ -164,3 +192,15 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 * **Ação Necessária**:
   - Manter a conta `demo@amparai.com.br` limpa de dados privados reais no banco de produção.
   - Implementar um script de limpeza periódica de pings de geolocalização e gastos simulados da conta demo.
+
+### ✅ 5. Ambiente de teste local + fluxo Familiar (29/07/2026)
+* **Guia**: `GUIA_STAGING.md` — Firestore Emulator + backend local, isolado e grátis, para
+  parar de testar contra produção.
+* **Testes do fluxo Familiar**: `backend/tests/test_amparai_familiar.py` (7 testes) provam o
+  RBAC do Círculo — Familiar entra por convite, registra cuidado (operacional) e é bloqueado
+  na governança (403). Rodam só com `AMPARAI_TEST_MODE=1` (emulador); contra prod são pulados.
+* **Contenção aplicada**: ambos os tokens sintéticos exigem `AMPARAI_TEST_MODE=1` +
+  `FIRESTORE_EMULATOR_HOST`; Cloud Run falha ao iniciar com essas flags. A suíte exige URL
+  local explícita e não possui fallback para produção.
+* **Validado em 24/08/2026**: Java 21 instalado e suíte completa executada no Firestore
+  Emulator — **50/50 testes passando**.

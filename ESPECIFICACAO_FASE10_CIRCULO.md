@@ -1,7 +1,9 @@
 # Especificação — Fase 10: Círculo de Cuidado (compartilhamento + RBAC)
 
 > Proposta técnica e de produto. Baseada na matriz de acesso validada pelo advogado.
-> **Status: proposta para aprovação do fundador.**
+> **Status atualizado em 24/08/2026:** modelo `owner_id + memberships` implementado. A
+> decisão posterior do fundador permite ao Familiar registrar ações operacionais; governança
+> permanece exclusiva do Coordenador. Financeiro e notas continuam fechados por padrão.
 
 ---
 

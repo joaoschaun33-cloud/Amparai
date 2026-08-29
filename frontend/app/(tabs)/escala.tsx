@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
     borderLeftWidth: 4,
-    ...shadow.sm,
+    ...shadow.card,
   },
   eventCardCovered: {
     borderLeftColor: colors.brand,

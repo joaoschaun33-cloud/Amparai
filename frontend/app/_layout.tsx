@@ -66,7 +66,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading) return;
-    const first = segments[0];
+    const first = segments[0] as string | undefined;
     const isPublic = first === "pulseira" || first === "convite" || first === "pagamento";
     const inTabs = first === "(tabs)";
     if (isPublic) return;
@@ -83,7 +83,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // Conta sem a pessoa cuidada cadastrada vai para o onboarding — nunca para um app
     // vazio. `null` significa "ainda verificando": não redireciona para não piscar tela.
     if (needsOnboarding === true) {
-      if (!inOnboarding) router.replace("/onboarding");
+      if (!inOnboarding) router.replace("/onboarding" as any);
       return;
     }
     if (needsOnboarding === false && inOnboarding) {

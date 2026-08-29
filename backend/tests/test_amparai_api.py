@@ -5,7 +5,7 @@ Order matters: logout test runs LAST.
 import pytest
 import os
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://amparai-backend-750186946997.southamerica-east1.run.app").rstrip("/")
+BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/")
 TEST_BEARER = "test_bearer_token_abc"
 
 PROTECTED = [
@@ -28,6 +28,22 @@ class TestRoot:
         assert r.status_code == 200
         body = r.json()
         assert "Amparai" in body.get("message", "")
+
+    def test_health_and_request_id(self, api_client):
+        r = api_client.get(
+            f"{BASE_URL}/api/health",
+            headers={"X-Request-ID": "ci-health-123"},
+        )
+        assert r.status_code == 200
+        assert r.json()["status"] == "ok"
+        assert r.headers["X-Request-ID"] == "ci-health-123"
+
+        sanitized = api_client.get(
+            f"{BASE_URL}/api/health",
+            headers={"X-Request-ID": "invalid id with spaces"},
+        )
+        assert sanitized.status_code == 200
+        assert sanitized.headers["X-Request-ID"] != "invalid id with spaces"
 
 
 # ---- Auth guards ----
