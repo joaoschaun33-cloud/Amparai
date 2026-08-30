@@ -6,16 +6,14 @@ Este documento lista as pendências técnicas, blockers de release e tarefas map
 
 ## 🛑 Blockers de Release (Críticos)
 
-### 🟡 Fase 4 — CI validado, proteção da branch depende do administrador (29/08/2026)
+### ✅ Fase 4 — CI validado e proteção da branch main ativa (30/08/2026)
 * Workflow com três gates: frontend; backend unitário/segurança/container; integração no
   Firestore Emulator. Execução remota comprovada: **52/52 testes de integração**, **5/5
   unitários**, segurança, TypeScript, lint, export web e build Docker aprovados.
 * Healthcheck e correlação por `X-Request-ID`; logs sem corpo, query ou dados familiares.
-* Evidência: GitHub Actions `33285462353`, commit `d020ab1`, três gates verdes com Java
-  Temurin 21.0.12 e Firestore Emulator isolado, sem credenciais de produção.
-* **Pendente administrativo:** habilitar proteção de `main` exigindo os três checks. A conta
-  colaboradora possui escrita, mas não administração; a API de proteção não autoriza a
-  configuração. Deploy permanece manual.
+* Evidência: GitHub Actions `33327010913`, commit `23fddca`, três gates verdes.
+* **Proteção de branch ativada**: `main` protegida com obrigatoriedade estrita dos status checks
+  `frontend`, `backend-unit-and-security` e `backend-integration` antes de qualquer merge.
 
 ### ✅ Fase 3 — verdade, papéis e acesso publicada (24/08/2026)
 * Novos convites limitados ao papel Familiar realmente implementado; financeiro fechado por
