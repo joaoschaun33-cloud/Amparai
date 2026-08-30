@@ -1,0 +1,11 @@
+{
+  "productName": "Amparai",
+  "exportedAt": "2026-08-02T13:48:46.867Z",
+  "canonicalArchitecture": "saas-supabase-stripe",
+  "healthScore": 100,
+  "timelineEvents": [
+    "PROJECT_ADOPTED",
+    "RULES_INJECTED",
+    "SNAPSHOT_CREATED"
+  ]
+}

@@ -1,0 +1,8 @@
+---
+description: Regras de Proteção Urion Safeguard para Vibe Coding e No-Code
+globs: *
+---
+# 🛡️ Urion Safeguard Rules
+1. Zero credenciais ou chaves de API expostas no frontend ou logs.
+2. Código legado em quarentena em legacy/; novas features em src/features/.
+3. Toda asserção de teste deve ser real e auditável (Dogma Zero).
