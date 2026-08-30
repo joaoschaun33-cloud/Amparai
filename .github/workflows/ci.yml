@@ -32,6 +32,10 @@ jobs:
 
   backend-unit-and-security:
     runs-on: ubuntu-latest
+    env:
+      AMPARAI_TEST_MODE: "1"
+      FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080"
+      GOOGLE_CLOUD_PROJECT: demo-amparai
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
