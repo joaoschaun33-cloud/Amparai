@@ -39,7 +39,7 @@ export default function Landing() {
 
         <View style={styles.hero}>
           <Image
-            source={{ uri: "https://images.unsplash.com/photo-1539527073261-80acb74db86e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxicmF6aWxpYW4lMjBzZW5pb3IlMjB3b21hbiUyMHNtaWxpbmclMjBwb3J0cmFpdCUyMHdhcm0lMjBsaWdodGluZ3xlbnwwfHx8fDE3ODQyMTIxNzB8MA&ixlib=rb-4.1.0&q=85" }}
+            source={require("@/assets/images/hero.webp")}
             style={styles.heroImage}
             contentFit="cover"
           />
