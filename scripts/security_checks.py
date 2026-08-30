@@ -30,6 +30,10 @@ server = (ROOT / "backend" / "server.py").read_text(encoding="utf-8")
 require('os.environ.get("AMPARAI_TEST_MODE") == "1"' in server, "token de teste sem flag")
 require('bool(os.environ.get("FIRESTORE_EMULATOR_HOST"))' in server, "token de teste sem emulador")
 require('os.environ.get("K_SERVICE")' in server, "Cloud Run sem fail-fast de flags de teste")
+require(
+    "AnonymousCredentials()" in server,
+    "emulador depende de credencial pessoal/produção",
+)
 
 tests_text = "\n".join(
     path.read_text(encoding="utf-8")

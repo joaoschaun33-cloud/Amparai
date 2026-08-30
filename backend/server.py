@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from google.cloud import firestore as google_firestore
+from google.auth.credentials import AnonymousCredentials
 from google.oauth2 import service_account
 
 ROOT_DIR = Path(__file__).parent
@@ -37,7 +38,10 @@ cred_path = ROOT_DIR / "service-account-key.json"
 if os.environ.get("FIRESTORE_EMULATOR_HOST"):
     # Ambiente de teste local (emulador): sem credencial real, projeto explícito.
     # NÃO afeta produção — no Cloud Run FIRESTORE_EMULATOR_HOST nunca é setado.
-    firebase_admin.initialize_app(options={"projectId": os.environ.get("GOOGLE_CLOUD_PROJECT", "amparai-ce7f4")})
+    firebase_admin.initialize_app(
+        AnonymousCredentials(),
+        options={"projectId": os.environ.get("GOOGLE_CLOUD_PROJECT", "demo-amparai")},
+    )
 elif cred_path.exists():
     cred = credentials.Certificate(str(cred_path))
     firebase_admin.initialize_app(cred)
