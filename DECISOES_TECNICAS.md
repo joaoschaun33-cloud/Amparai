@@ -88,3 +88,7 @@ Este documento registra as decisões de arquitetura e decisões de projeto tomad
 * **Decisão**: GitHub Actions valida frontend, unidade/segurança/container e integração completa no Firestore Emulator. O projeto de teste usa prefixo `demo-`, os testes rejeitam URL remota e o workflow recebe apenas `contents: read`.
 * **Observabilidade**: cada resposta recebe `X-Request-ID`; logs registram somente método, caminho, status e latência. Corpo, query string, token e conteúdo familiar não são registrados.
 * **Trade-off**: publicação continua manual até staging remoto existir; em troca, o CI não possui qualquer autoridade sobre GCP/Firebase.
+* **Evidência (29/08/2026)**: execução GitHub Actions `33285462353` aprovada nos três gates;
+  integração com Java 21 e 52 testes, 5 testes unitários, invariantes de segurança, frontend
+  e build Docker. O Firebase Admin usa `AnonymousCredentials` somente quando
+  `FIRESTORE_EMULATOR_HOST` está definido; Cloud Run continua bloqueando essa configuração.
