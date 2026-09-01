@@ -3,7 +3,6 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "preinstall": "node ./scripts/cmd-guard.js --preinstall",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
@@ -60,7 +59,7 @@
     "expo-doctor": "1.19.8",
     "typescript": "5.9.3"
   },
-  "resolutions": {
+  "overrides": {
     "@eslint/plugin-kit": "0.3.4",
     "postcss": "8.5.10",
     "uuid": "11.1.1"

@@ -1,0 +1,8 @@
+{
+  "name": "Amparai",
+  "description": "A sala de controle calma do cuidado familiar",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
