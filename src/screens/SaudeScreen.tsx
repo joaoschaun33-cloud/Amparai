@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Medication, MedicalAppointment, VitalMeasurement } from '../types';
 import { Pill, Calendar, Activity, Clock, FileText } from 'lucide-react';
+import { MedBagSection } from '../components/MedBagSection';
 
 export const SaudeScreen: React.FC = () => {
   const { elder, openAddCare } = useAuth();
@@ -150,7 +151,10 @@ export const SaudeScreen: React.FC = () => {
         </div>
       </section>
 
-      {/* 2. Medicamentos de Uso Contínuo */}
+      {/* 2. Pasta de Saúde Digital (MedBag - D-008 & D-009) */}
+      <MedBagSection />
+
+      {/* 3. Medicamentos de Uso Contínuo */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg font-bold text-[#3E2F25] flex items-center gap-2">

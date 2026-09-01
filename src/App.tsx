@@ -12,9 +12,14 @@ import { CirculoScreen } from './screens/CirculoScreen';
 import { ClinicoScreen } from './screens/ClinicoScreen';
 import { ContaScreen } from './screens/ContaScreen';
 import { ConsentimentoScreen } from './screens/ConsentimentoScreen';
+import { DoctorPortalScreen } from './screens/DoctorPortalScreen';
 
 function MainApp() {
-  const { activeTab } = useAuth();
+  const { activeTab, setActiveTab } = useAuth();
+
+  if (activeTab === 'medico') {
+    return <DoctorPortalScreen onBackToApp={() => setActiveTab('saude')} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F0E6] flex flex-col text-[#3E2F25]">
@@ -50,4 +55,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-

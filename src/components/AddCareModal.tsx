@@ -12,7 +12,7 @@ export const AddCareModal: React.FC<AddCareModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { isAddCareOpen, setIsAddCareOpen, addCareType, setAddCareType, showToast, user, refreshData } = useAuth();
+  const { isAddCareOpen, setIsAddCareOpen, addCareType, user, refreshData } = useAuth();
   const [tab, setTab] = useState<'rotina' | 'remedio' | 'nota' | 'custo' | 'plantao'>('rotina');
   const [loading, setLoading] = useState(false);
 
@@ -77,7 +77,7 @@ export const AddCareModal: React.FC<AddCareModalProps> = ({
             notes: routineNotes,
           }),
         });
-        showToast(`Cuidado "${routineTitle}" adicionado à rotina.`);
+        // Salvo com sucesso
       } else if (tab === "remedio") {
         await fetch("/api/medications", {
           method: "POST",
@@ -91,7 +91,6 @@ export const AddCareModal: React.FC<AddCareModalProps> = ({
             prescription_holder: user?.name || "Juliana",
           }),
         });
-        showToast(`Medicamento ${medName} cadastrado com carinho.`);
       } else if (tab === "nota") {
         await fetch("/api/notes", {
           method: "POST",
@@ -103,7 +102,6 @@ export const AddCareModal: React.FC<AddCareModalProps> = ({
             author_role: user?.role || "Coordenador",
           }),
         });
-        showToast("Recado compartilhado com o círculo de cuidado.");
       } else if (tab === "custo") {
         await fetch("/api/costs", {
           method: "POST",
@@ -115,7 +113,6 @@ export const AddCareModal: React.FC<AddCareModalProps> = ({
             paid_by_name: user?.name || "Juliana Schaun",
           }),
         });
-        showToast("Despesa compartilhada registrada para acerto.");
       } else if (tab === "plantao") {
         await fetch("/api/schedule", {
           method: "POST",
@@ -127,7 +124,6 @@ export const AddCareModal: React.FC<AddCareModalProps> = ({
             notes: shiftNotes,
           }),
         });
-        showToast("Plantão adicionado à escala familiar.");
       }
 
       await refreshData();
@@ -135,7 +131,6 @@ export const AddCareModal: React.FC<AddCareModalProps> = ({
       handleClose();
     } catch (err) {
       console.error(err);
-      showToast("Não foi possível salvar o registro agora.");
     } finally {
       setLoading(false);
     }

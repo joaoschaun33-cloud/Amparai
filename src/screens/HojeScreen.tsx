@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { RoutineItem, DailyNote } from '../types';
 import { Check, Clock, Plus, Sparkles, MessageSquare, Sun, Sunset, Moon, Heart, ChevronRight, User } from 'lucide-react';
+import { WeeklySummaryCard } from '../components/WeeklySummaryCard';
 
 export const HojeScreen: React.FC = () => {
   const { elder, openAddCare, user, setActiveTab } = useAuth();
@@ -147,6 +148,9 @@ export const HojeScreen: React.FC = () => {
           {aiSummary || `Hoje o dia com ${elder?.nickname || "Dona Helena"} correu com muita tranquilidade e carinho. Os cuidados da manhã foram cumpridos no horário, a caminhada no jardim trouxe boa disposição e a hidratação está em dia. A família e a cuidadora estão bem alinhadas!`}
         </p>
       </section>
+
+      {/* 2.1 Resumo Semanal Afetivo (D-006) */}
+      <WeeklySummaryCard />
 
       {/* 3. Rotina do Dia (Manhã, Tarde, Noite) */}
       <section className="space-y-4">

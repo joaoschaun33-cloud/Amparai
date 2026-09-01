@@ -2,8 +2,8 @@ export interface User {
   user_id: string;
   email: string;
   name: string;
+  role?: string;
   picture?: string | null;
-  role?: "coordenador" | "familiar" | "cuidador" | string;
   phone?: string;
   pix_key?: string;
 }
@@ -11,9 +11,9 @@ export interface User {
 export interface Elder {
   id: string;
   name: string;
-  nickname?: string;
-  age?: number;
+  age: number;
   photo_url?: string;
+  nickname?: string;
   birth_date?: string;
   blood_type?: string;
   allergies?: string[];
@@ -29,31 +29,17 @@ export interface Elder {
 
 export type ElderProfile = Elder;
 
-export interface RoutineItem {
+export interface Medication {
   id: string;
-  title: string;
-  period: "manha" | "tarde" | "noite";
-  time: string;
-  category: "medicamento" | "alimentacao" | "bem_estar" | "atividade";
-  description?: string;
-  dosage?: string;
-  completed: boolean;
-  completed_at?: string;
-  completed_by?: string;
-  notes?: string;
-}
-
-export interface DailyNote {
-  id: string;
-  author_name: string;
-  author_role?: string;
-  author_avatar?: string;
-  content?: string;
-  detail?: string;
-  created_at?: string;
-  date?: string;
+  name: string;
+  dosage: string;
   time?: string;
-  mood?: "bem" | "tranquila" | "cansada" | "animada" | string;
+  taken?: boolean;
+  period?: string;
+  stock_days_left?: number;
+  instructions?: string;
+  prescription_holder?: string;
+  schedule_times?: string[];
 }
 
 export interface Shift {
@@ -64,88 +50,93 @@ export interface Shift {
   caregiver_avatar?: string;
   role?: string;
   covered?: boolean;
-  date?: string;
-  caregiver_id?: string;
-  period?: "integral" | "manha" | "tarde" | "noite" | string;
-  status?: "confirmado" | "folga" | "troca_solicitada" | string;
+  date: string;
+  period?: string;
+  status?: 'confirmado' | 'folga' | 'troca_solicitada' | string;
   notes?: string;
   substitute_name?: string;
-}
-
-export interface Medication {
-  id: string;
-  name: string;
-  dosage: string;
-  time?: string;
-  taken?: boolean;
-  period?: string;
-  schedule_times?: string[];
-  stock_days_left?: number;
-  instructions?: string;
-  prescription_holder?: string;
 }
 
 export interface Appointment {
   id: string;
   title?: string;
-  specialty?: string;
-  doctor?: string;
-  date?: string;
-  time?: string;
   when?: string;
+  doctor?: string;
   location?: string;
+  date: string;
+  time?: string;
   notes?: string;
+  specialty?: string;
   companion?: string;
 }
 
 export type MedicalAppointment = Appointment;
 
-export interface VitalMeasurement {
+export interface HealthEvent {
   id: string;
-  type?: "pressao" | "glicemia" | "saturacao" | "temperatura" | string;
-  kind?: string;
+  kind?: "pressao" | "audio" | "observacao" | "consulta" | string;
+  type?: "pressao" | "glicemia" | "saturacao" | string;
+  title?: string;
+  detail?: string;
+  content?: string;
+  when?: string;
+  author_name?: string;
+  author_avatar?: string;
+  author_role?: string;
   value?: string;
   date?: string;
   time?: string;
-  when?: string;
-  title?: string;
-  detail?: string;
-  author_name?: string;
   measured_by?: string;
+  mood?: string;
+  created_at?: string;
 }
 
-export type HealthEvent = VitalMeasurement;
+export type VitalMeasurement = HealthEvent;
+export type DailyNote = HealthEvent;
 
 export interface Expense {
   id: string;
   title: string;
-  category: "farmacia" | "cuidador" | "consulta" | "compras" | "outros" | string;
   amount: number;
+  category: string;
+  date: string;
   paid_by?: string;
   paid_by_name?: string;
-  paid_by_id?: string;
-  date: string;
-  receipt_url?: string;
+  split_status?: Record<string, "pago" | "pendente">;
   receipt_thumb?: string;
+  receipt_url?: string;
   split_between?: string[];
-  split_status?: Record<string, "pago" | "pendente" | string>;
 }
 
 export interface Member {
   id: string;
   name: string;
-  relation?: string;
-  role?: "coordenador" | "familiar" | "cuidador" | string;
+  role: 'coordenador' | 'familiar' | 'cuidador' | string;
   avatar?: string;
-  phone?: string;
-  email?: string;
-  is_emergency_contact?: boolean;
-  pix_key?: string;
   can_see_financeiro?: boolean;
   can_see_notas?: boolean;
+  phone?: string;
+  email?: string;
+  relation?: string;
+  is_emergency_contact?: boolean;
+  pix_key?: string;
 }
 
 export type CircleMember = Member;
+
+export interface RoutineItem {
+  id: string;
+  title: string;
+  period: "manha" | "tarde" | "noite";
+  time: string;
+  category?: "medicamento" | "alimentacao" | "bem_estar" | "atividade" | string;
+  description?: string;
+  dosage?: string;
+  completed: boolean;
+  completed_at?: string;
+  completed_by?: string;
+  notes?: string;
+}
 
 export interface ClinicalData {
   blood_type?: string;
@@ -168,9 +159,96 @@ export interface LocationSettings {
   radius_m?: number;
 }
 
-export interface ConsentStatus {
-  consented: boolean;
-  accepted_at?: string;
-  term_version?: string;
-  method?: string;
+export interface MedBagDocument {
+  id: string;
+  title: string;
+  category: 'receita' | 'exame' | 'laudo' | 'vacina' | 'outro';
+  date: string;
+  doctor_name?: string;
+  specialty?: string;
+  file_url?: string;
+  file_type?: 'pdf' | 'image';
+  summary?: string;
+  tags?: string[];
+  created_at: string;
+  uploaded_by: string;
 }
+
+export interface ShareableHealthLink {
+  token: string;
+  url: string;
+  expires_at: string;
+  elder_name: string;
+  authorized_by: string;
+}
+
+export interface WeeklyCareSummary {
+  week_label: string;
+  adherence_rate: number;
+  completed_cares_count: number;
+  total_cares_count: number;
+  vital_stability: string;
+  highlights: string[];
+  tone_summary: string;
+  shift_recap: { caregiver_name: string; shifts_count: number }[];
+  source_provider: 'gemini' | 'grok' | 'groq' | 'fallback';
+  generated_at: string;
+  cost_brl: number;
+}
+
+export interface AICallAudit {
+  id: string;
+  timestamp: string;
+  endpoint: string;
+  provider: string;
+  latency_ms: number;
+  tokens_prompt: number;
+  tokens_completion: number;
+  cost_brl: number;
+  success: boolean;
+}
+
+export interface AppNotification {
+  id: string;
+  type: 'remedio' | 'recado' | 'plantao' | 'saude' | 'sistema';
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  action_url?: string;
+  sender_name?: string;
+}
+
+export interface NotificationPreferences {
+  medication_alerts: boolean;
+  daily_notes_alerts: boolean;
+  shift_reminders: boolean;
+  weekly_summary_alert: boolean;
+  sound_enabled: boolean;
+  push_enabled: boolean;
+}
+
+export interface FamilyFeedback {
+  id: string;
+  family_member_name: string;
+  peace_of_mind_rating: number; // 1 to 5
+  daily_routine_easy_rating: number; // 1 to 5
+  message: string;
+  highlight?: string;
+  created_at: string;
+}
+
+export type PlanType = 'gratuito' | 'circulo_familiar';
+
+export interface SubscriptionInfo {
+  current_plan: PlanType;
+  plan_name: string;
+  price_brl_monthly: number;
+  members_count: number;
+  medbag_storage_used_mb: number;
+  medbag_storage_limit_mb: number;
+  ai_summaries_enabled: boolean;
+  status: 'active' | 'trial' | 'free';
+  next_billing_date?: string;
+}
+

@@ -1,33 +1,31 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
-    background-color: #F7F0E6;
-    color: #2D2621;
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  :root {
+    --brand: #5C6E49;
+    --brand-deep: #465538;
+    --brand-light: #8A9E74;
+    --brand-subtle: #EBF0E6;
+    --surface: #F7F0E6;
+    --surface-secondary: #FFFDF9;
+    --surface-tertiary: #EFE6D8;
+    --terracota: #C4633F;
+    --ambar: #E8A854;
+    --clay-red: #A9402E;
+    --ink: #3E2F25;
+    --ink-soft: #6B5A4C;
+    --ink-subtle: #A89B8F;
+    --border: #EAE0D3;
   }
-}
 
-.font-serif {
-  font-family: 'Fraunces', Georgia, serif;
-}
+  body {
+    background-color: var(--surface);
+    color: var(--ink);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
 
-.font-sans {
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #F7F0E6;
-}
-::-webkit-scrollbar-thumb {
-  background: #D9CFC1;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #2E7D60;
+  h1, h2, h3, .font-display {
+    font-family: 'Fraunces', Georgia, serif;
+  }
 }

@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Heart, MapPin, Phone, User, Check, Edit2, Save } from 'lucide-react';
 
 export const ClinicoScreen: React.FC = () => {
-  const { elder } = useAuth();
+  const { elder, refreshData } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [bloodType, setBloodType] = useState(elder?.blood_type || 'O+');
   const [allergies, setAllergies] = useState(elder?.allergies?.join(', ') || 'Dipirona');
@@ -30,6 +30,7 @@ export const ClinicoScreen: React.FC = () => {
           address,
         }),
       });
+      await refreshData();
       setIsEditing(false);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
